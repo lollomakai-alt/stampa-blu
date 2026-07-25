@@ -325,5 +325,5 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     fontWeight: '600',
   },
-});
+    });
 

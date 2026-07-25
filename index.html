@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lollo-Stamp Android Fiber Bridge</title>
+    <style>
+        :root {
+            --bg-color: #0a0e17;
+            --card-bg: #111827;
+            --led-green: #39FF14;
+            --border-color: #1F2937;
+        }
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: #FFFFFF;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 480px;
+        }
+        .header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            text-align: center;
+        }
+        .headerTitle {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--led-green);
+            letter-spacing: 2px;
+            text-shadow: 0 0 8px var(--led-green);
+            margin: 0;
+        }
+        .headerSubtitle {
+            font-size: 11px;
+            color: #9CA3AF;
+            margin-top: 4px;
+            letter-spacing: 1px;
+        }
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 18px;
+            margin-top: 15px;
+        }
+        .cardLabel {
+            font-size: 11px;
+            color: #9CA3AF;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+        .ledBox {
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--led-green);
+            text-align: center;
+            background-color: #030712;
+            box-shadow: 0 0 10px rgba(57, 255, 20, 0.4);
+        }
+        .ledText {
+            font-size: 15px;
+            font-weight: bold;
+            letter-spacing: 1.5px;
+            color: var(--led-green);
+            text-shadow: 0 0 6px var(--led-green);
+        }
+        .deviceInfo {
+            font-size: 12px;
+            color: #D1D5DB;
+            margin-top: 8px;
+            text-align: center;
+        }
+        .ipContainer {
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            background-color: #030712;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+        .ipProtocol { color: #6B7280; font-size: 13px; }
+        .ipAddress { color: #00F0FF; font-size: 24px; font-weight: bold; margin: 0 4px; text-shadow: 0 0 8px #00F0FF; }
+        .ipPort { color: #6B7280; font-size: 14px; }
+        .cardSubtext {
+            font-size: 10px;
+            color: #6B7280;
+            text-align: center;
+            margin-top: 6px;
+        }
+        .logCard {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 15px;
+            min-height: 80px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 11px;
+            color: var(--led-green);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1 class="headerTitle">LOLLO-STAMP</h1>
+        <div class="headerSubtitle">ANDROID FIBER BRIDGE (WEB VIEW)</div>
+    </div>
+
+    <div class="card">
+        <div class="cardLabel">STATO DEL BRIDGE</div>
+        <div class="ledBox">
+            <span class="ledText">ONLINE & PRONTO</span>
+        </div>
+        <div class="deviceInfo">Server web di gestione pronto per Vercel</div>
+    </div>
+
+    <div class="card">
+        <div class="cardLabel">ENDPOINT LOCALE Wi-Fi (iPAD)</div>
+        <div class="ipContainer">
+            <span class="ipProtocol">http://</span>
+            <span class="ipAddress">192.168.1.150</span>
+            <span class="ipPort">:8080/print</span>
+        </div>
+        <div class="cardSubtext">Configura questo endpoint sul tuo gestionale web</div>
+    </div>
+
+    <div class="logCard">
+        [SYSTEM] Pagina web statica caricata correttamente su Vercel.<br>
+        [BRIDGE] In attesa di istruzioni...
+    </div>
+</div>
+
+</body>
+</html>

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lollo-Stamp - Android Fiber Bridge</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
             --bg-main: #0b0f19;
@@ -245,35 +246,69 @@
         </div>
     </main>
 
-    <script>
-        // Funzione per gestire la richiesta Bluetooth tramite browser
-        async function connettiBluetooth() {
-            const statusEl = document.getElementById('bt-status');
-            const logEl = document.getElementById('console-log');
+  <script>
+    // --- INSERISCI QUI LE TUE CREDENZIALI SUPABASE ---
+    const SUPABASE_URL = https://cqyrhemajhdtxeiptkue.supabase.co
+;
+    const SUPABASE_KEY = sb_publishable_g9Xn_n06Ho7rBvwWf50EpA_LddX8JSg;
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let bluetoothDevice = null;
+
+    // Funzione per connettere la stampante Bluetooth
+    async function connettiBluetooth() {
+        const statusEl = document.getElementById('bt-status');
+        const logEl = document.getElementById('console-log');
+        
+        try {
+            statusEl.innerText = "Ricerca stampanti in corso...";
             
-            try {
-                statusEl.innerText = "Ricerca stampanti in corso...";
-                
-                // Richiede la connessione a una periferica Bluetooth
-                const device = await navigator.bluetooth.requestDevice({
-                    acceptAllDevices: true,
-                    optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
-                });
+            bluetoothDevice = await navigator.bluetooth.requestDevice({
+                acceptAllDevices: true,
+                optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+            });
 
-                statusEl.innerText = "Connesso a: " + (device.name || "Dispositivo Bluetooth");
-                statusEl.style.color = "var(--accent-green)";
-                
-                logEl.innerHTML += `<br><span class="log-success">[BLUETOOTH]</span> Stampante "${device.name}" collegata con successo!`;
-                logEl.scrollTop = logEl.scrollHeight;
+            statusEl.innerText = "Connesso a: " + (bluetoothDevice.name || "Stampante BT");
+            statusEl.style.color = "var(--accent-green)";
+            
+            logEl.innerHTML += `<br><span class="log-success">[BLUETOOTH]</span> Stampante "${bluetoothDevice.name}" collegata!`;
+            logEl.scrollTop = logEl.scrollHeight;
 
-            } catch (error) {
-                console.error(error);
-                statusEl.innerText = "Connessione annullata o fallita.";
-                statusEl.style.color = "#f87171";
-                logEl.innerHTML += `<br><span style="color: #f87171;">[ERRORE BT]</span> ${error.message}`;
-                logEl.scrollTop = logEl.scrollHeight;
-            }
+            // Una volta connesso il Bluetooth, avviamo l'ascolto di Supabase
+            ascoltaOrdiniSupabase();
+
+        } catch (error) {
+            console.error(error);
+            statusEl.innerText = "Connessione Bluetooth fallita.";
+            statusEl.style.color = "#f87171";
+            logEl.innerHTML += `<br><span style="color: #f87171;">[ERRORE BT]</span> ${error.message}`;
+            logEl.scrollTop = logEl.scrollHeight;
         }
-    </script>
+    }
+
+    // Funzione per mettersi in ascolto dei nuovi ordini in tempo reale
+    function ascoltaOrdiniSupabase() {
+        const logEl = document.getElementById('console-log');
+        logEl.innerHTML += `<br><span class="log-success">[SUPABASE]</span> In ascolto di nuove comande...`;
+
+        supabase
+            .channel('public:ordini')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ordini' }, payload => {
+                console.log('Nuovo ordine ricevuto!', payload.new);
+                logEl.innerHTML += `<br><span class="log-success">[COMANDA]</span> Nuovo ordine per il Tavolo #${payload.new.tavolo}!`;
+                logEl.scrollTop = logEl.scrollHeight;
+
+                stampaComanda(payload.new);
+            })
+            .subscribe();
+    }
+
+    // Funzione per la stampa (da espandere con i comandi ESC/POS per la stampante termica)
+    async function stampaComanda(ordine) {
+        console.log("Invio alla stampante l'ordine del tavolo: " + ordine.tavolo);
+    }
+</script>
 </body>
 </html>
+

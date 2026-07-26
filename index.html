@@ -3,288 +3,145 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lollo-Stamp - Supabase & Bluetooth Bridge</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <title>Lollo-Stamp Bridge</title>
     <style>
-        :root {
-            --bg-main: #0b0f19;
-            --bg-card: #131b2e;
-            --border-card: #1e293b;
-            --accent-green: #00ff66;
-            --accent-glow: rgba(0, 255, 102, 0.4);
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
-
         body {
-            background-color: var(--bg-main);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        header {
-            background-color: #0d1322;
-            border-bottom: 1px solid var(--border-card);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 24px;
-            font-size: 14px;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 24px;
-            color: var(--text-muted);
-        }
-
-        .nav-links span.active {
-            color: var(--text-main);
-            font-weight: 600;
-            border-bottom: 2px solid var(--accent-green);
-            padding-bottom: 4px;
-        }
-
-        .nav-right {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-
-        .status-badge {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 13px;
-        }
-
-        .dot-online {
-            width: 8px;
-            height: 8px;
-            background-color: var(--accent-green);
-            border-radius: 50%;
-            box-shadow: 0 0 8px var(--accent-green);
-        }
-
-        main {
-            flex: 1;
+            background-color: #0a0e17;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 30px 20px;
-            max-width: 600px;
-            margin: 0 auto;
+        }
+        .container {
             width: 100%;
+            max-width: 400px;
         }
-
-        h1 {
-            color: var(--accent-green);
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #1F2937;
+            padding-bottom: 15px;
+        }
+        .headerTitle {
             font-size: 22px;
+            font-weight: bold;
+            color: #39FF14;
+            letter-spacing: 2px;
+        }
+        .card {
+            background-color: #111827;
+            border: 1px solid #1F2937;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 15px;
+        }
+        .cardLabel {
+            font-size: 11px;
+            color: #9CA3AF;
+            margin-bottom: 10px;
             letter-spacing: 1px;
-            margin-bottom: 4px;
-            text-shadow: 0 0 10px var(--accent-glow);
+            font-weight: bold;
+        }
+        .actionButton {
+            background-color: #1E3A8A;
+            border: 1px solid #3B82F6;
+            color: #FFFFFF;
+            padding: 15px;
+            border-radius: 12px;
+            width: 100%;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
             text-align: center;
         }
-
-        .subtitle {
-            color: var(--text-muted);
-            font-size: 12px;
-            margin-bottom: 30px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .card {
-            background-color: var(--bg-card);
-            border: 1px solid var(--border-card);
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            width: 100%;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
-        }
-
-        .card-title {
-            font-size: 12px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            margin-bottom: 12px;
-            letter-spacing: 0.5px;
-        }
-
-        .btn-action {
-            background-color: #0ea5e9;
-            color: white;
-            border: none;
-            padding: 12px 20px;
+        .logBox {
+            background-color: #030712;
+            border: 1px solid #1F2937;
             border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            width: 100%;
-            font-size: 14px;
-            transition: background 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            box-shadow: 0 0 10px rgba(14, 165, 233, 0.4);
-        }
-
-        .btn-action:hover {
-            background-color: #0284c7;
-        }
-
-        .log-box {
-            background-color: #070a12;
-            border: 1px solid var(--border-card);
-            border-radius: 8px;
-            padding: 12px;
+            padding: 10px;
             font-family: monospace;
             font-size: 11px;
-            color: var(--text-muted);
+            color: #39FF14;
             height: 120px;
             overflow-y: auto;
         }
-
-        .log-success { color: var(--accent-green); }
+        .status-badge {
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            background: #030712;
+            border: 1px solid #FACC15;
+            color: #FACC15;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .connected {
+            border-color: #39FF14 !important;
+            color: #39FF14 !important;
+        }
     </style>
 </head>
 <body>
 
-    <header>
-        <div class="nav-links">
-            <span class="active">Bridge Supabase & Bluetooth</span>
-        </div>
-        <div class="nav-right">
-            <div class="status-badge">
-                <div class="dot-online"></div>
-                <span>Connesso</span>
-            </div>
-        </div>
-    </header>
+<div class="container">
+    <div class="header">
+        <div class="headerTitle">LOLLO-STAMP</div>
+        <div style="font-size: 11px; color: #9CA3AF; margin-top: 4px;">CLOUD DIRECT BRIDGE</div>
+    </div>
 
-    <main>
-        <h1>LOLLO-STAMP</h1>
-        <div class="subtitle">Cloud Direct Bridge</div>
+    <div class="card">
+        <div class="cardLabel">CONNESSIONE STAMPANTE BLUETOOTH</div>
+        <div id="statusBadge" class="status-badge">In attesa di associazione Bluetooth...</div>
+        <button class="actionButton" onclick="connettiStampante()">Associa Stampante Termica</button>
+    </div>
 
-        <div class="card">
-            <div class="card-title">Connessione Stampante Bluetooth</div>
-            <button class="btn-action" onclick="connettiBluetooth()">
-                🔗 Associa Stampante Termica
-            </button>
-            <div id="bt-status" style="font-size: 12px; color: var(--text-muted); margin-top: 10px; text-align: center;">
-                Stato: In attesa di associazione Bluetooth...
-            </div>
-        </div>
+    <div class="card">
+        <div class="cardLabel">CONSOLE LOG IN TEMPO REALE</div>
+        <div id="logBox" class="logBox">[SYSTEM] Interfaccia avviata. Clicca su associa stampante.</div>
+    </div>
+</div>
 
-        <div class="card" style="margin-bottom: 0;">
-            <div class="card-title">Console Log in Tempo Reale</div>
-            <div class="log-box" id="console-log">
-                <span class="log-success">[SYSTEM]</span> Interfaccia avviata. Clicca su associa stampante.<br>
-            </div>
-        </div>
-    </main>
-
-  <script>
-    const SUPABASE_URL = "https://cqyrhemajhdtxeiptkue.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_g9Xn_n06Ho7rBvwWf50EpA_LddX8JSg";
-
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    let bluetoothDevice = null;
-    let bluetoothCharacteristic = null;
-
-    async function connettiBluetooth() {
-        const statusEl = document.getElementById('bt-status');
-        const logEl = document.getElementById('console-log');
-        
-        try {
-            statusEl.innerText = "Ricerca dispositivi Bluetooth...";
-            
-            bluetoothDevice = await navigator.bluetooth.requestDevice({
-                acceptAllDevices: true,
-                optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
-            });
-
-            const server = await bluetoothDevice.gatt.connect();
-            const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-            bluetoothCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
-
-            statusEl.innerText = "Connesso a: " + (bluetoothDevice.name || "Stampante Termica");
-            statusEl.style.color = "var(--accent-green)";
-            
-            logEl.innerHTML += `<br><span class="log-success">[BLUETOOTH]</span> Stampante "${bluetoothDevice.name || 'Termica'}" collegata con successo!`;
-            logEl.scrollTop = logEl.scrollHeight;
-
-            avviaAscoltoSupabase();
-
-        } catch (error) {
-            console.error(error);
-            statusEl.innerText = "Connessione Bluetooth fallita o annullata.";
-            statusEl.style.color = "#f87171";
-            logEl.innerHTML += `<br><span style="color: #f87171;">[ERRORE BT]</span> ${error.message}`;
-            logEl.scrollTop = logEl.scrollHeight;
-        }
+<script>
+    function addLog(msg) {
+        const logBox = document.getElementById('logBox');
+        logBox.innerHTML += `<br>[${new Date().toLocaleTimeString()}] ${msg}`;
+        logBox.scrollTop = logBox.scrollHeight;
     }
 
-    function avviaAscoltoSupabase() {
-        const logEl = document.getElementById('console-log');
-        logEl.innerHTML += `<br><span class="log-success">[SUPABASE]</span> Ascolto realtime attivo sulla tabella 'ordini'...`;
-        logEl.scrollTop = logEl.scrollHeight;
-
-        supabase
-            .channel('public:ordini')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ordini' }, payload => {
-                const nuovoOrdine = payload.new;
-                logEl.innerHTML += `<br><span class="log-success">[SUPABASE]</span> Ricevuto ordine Tavolo #${nuovoOrdine.tavolo}`;
-                logEl.scrollTop = logEl.scrollHeight;
-
-                inviaDatiAllaStampante(nuovoOrdine);
-            })
-            .subscribe();
-    }
-
-    async function inviaDatiAllaStampante(ordine) {
-        const logEl = document.getElementById('console-log');
-        
-        if (!bluetoothCharacteristic) {
-            logEl.innerHTML += `<br><span style="color: #f87171;">[ERRORE]</span> Impossibile stampare: Stampante Bluetooth non connessa!`;
-            logEl.scrollTop = logEl.scrollHeight;
+    async function connettiStampante() {
+        if (!navigator.bluetooth) {
+            alert("Il Bluetooth non è supportato da questo browser. Usa Google Chrome su Android.");
+            addLog("ERRORE: Bluetooth Web API non supportata.");
             return;
         }
 
         try {
-            const encoder = new TextEncoder();
-            let testoStampa = `\x1B\x40`; 
-            testoStampa += `\x1B\x61\x01`; 
-            testoStampa += `LOLLO-STAMP\n`;
-            testoStampa += `--------------------------------\n`;
-            testoStampa += `Tavolo: ${ordine.tavolo}\n`;
-            testoStampa += `Dettagli: ${ordine.dettagli || 'Nessun dettaglio'}\n`;
-            testoStampa += `--------------------------------\n\n\n`;
-
-            const encodedData = encoder.encode(testoStampa);
-            await bluetoothCharacteristic.writeValue(encodedData);
+            addLog("Apertura ricerca dispositivi Bluetooth...");
             
-            logEl.innerHTML += `<br><span class="log-success">[STAMPA]</span> Ordine Tavolo #${ordine.tavolo} stampato correttamente!`;
-            logEl.scrollTop = logEl.scrollHeight;
+            // Richiede la connessione alla stampante (filtra per nome o accetta tutto)
+            const device = await navigator.bluetooth.requestDevice({
+                acceptAllDevices: true,
+                // Se vuoi filtrare solo le stampanti, puoi usare: filters: [{ namePrefix: 'POS' }]
+            });
+
+            addLog(`Dispositivo selezionato: ${device.name}`);
+            document.getElementById('statusBadge').innerText = `Connesso a: ${device.name}`;
+            document.getElementById('statusBadge').classList.add('connected');
+
+            const server = await device.gatt.connect();
+            addLog("Connessione GATT stabilita con successo!");
 
         } catch (error) {
-            console.error("Errore di scrittura Bluetooth:", error);
-            logEl.innerHTML += `<br><span style="color: #f87171;">[ERRORE STAMPA]</span> ${error.message}`;
-            logEl.scrollTop = logEl.scrollHeight;
+            console.error(error);
+            addLog(`Errore/Annullato: ${error.message}`);
         }
     }
 </script>
+
 </body>
 </html>
+
 

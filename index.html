@@ -203,7 +203,6 @@
     let bluetoothDevice = null;
     let bluetoothCharacteristic = null;
 
-    // Funzione per connettere la stampante Bluetooth e abilitare subito Supabase
     async function connettiBluetooth() {
         const statusEl = document.getElementById('bt-status');
         const logEl = document.getElementById('console-log');
@@ -211,7 +210,6 @@
         try {
             statusEl.innerText = "Ricerca dispositivi Bluetooth...";
             
-            // Richiede la connessione al dispositivo Bluetooth (stampante termica)
             bluetoothDevice = await navigator.bluetooth.requestDevice({
                 acceptAllDevices: true,
                 optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
@@ -219,7 +217,7 @@
 
             const server = await bluetoothDevice.gatt.connect();
             const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-            bluetoothCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb'); // Caratteristica tipica di scrittura ESC/POS
+            bluetoothCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
 
             statusEl.innerText = "Connesso a: " + (bluetoothDevice.name || "Stampante Termica");
             statusEl.style.color = "var(--accent-green)";
@@ -227,7 +225,6 @@
             logEl.innerHTML += `<br><span class="log-success">[BLUETOOTH]</span> Stampante "${bluetoothDevice.name || 'Termica'}" collegata con successo!`;
             logEl.scrollTop = logEl.scrollHeight;
 
-            // Avvia l'ascolto dei dati esclusivamente da Supabase
             avviaAscoltoSupabase();
 
         } catch (error) {
@@ -239,7 +236,6 @@
         }
     }
 
-    // Ascolta in tempo reale la tabella 'ordini' di Supabase senza passare per server locali
     function avviaAscoltoSupabase() {
         const logEl = document.getElementById('console-log');
         logEl.innerHTML += `<br><span class="log-success">[SUPABASE]</span> Ascolto realtime attivo sulla tabella 'ordini'...`;
@@ -257,7 +253,6 @@
             .subscribe();
     }
 
-    // Invia i dati formattati direttamente alla stampante Bluetooth via ESC/POS
     async function inviaDatiAllaStampante(ordine) {
         const logEl = document.getElementById('console-log');
         
@@ -268,10 +263,9 @@
         }
 
         try {
-            // Generazione comandi ESC/POS di base per la stampa dello scontrino
             const encoder = new TextEncoder();
-            let testoStampa = `\x1B\x40`; // Inizializza stampante
-            testoStampa += `\x1B\x61\x01`; // Allineamento Centrato
+            let testoStampa = `\x1B\x40`; 
+            testoStampa += `\x1B\x61\x01`; 
             testoStampa += `LOLLO-STAMP\n`;
             testoStampa += `--------------------------------\n`;
             testoStampa += `Tavolo: ${ordine.tavolo}\n`;
@@ -279,8 +273,6 @@
             testoStampa += `--------------------------------\n\n\n`;
 
             const encodedData = encoder.encode(testoStampa);
-            
-            // Invio dei pacchetti via Bluetooth alla stampante
             await bluetoothCharacteristic.writeValue(encodedData);
             
             logEl.innerHTML += `<br><span class="log-success">[STAMPA]</span> Ordine Tavolo #${ordine.tavolo} stampato correttamente!`;
@@ -295,3 +287,4 @@
 </script>
 </body>
 </html>
+

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lollo-Stamp - Android Fiber Bridge</title>
+    <title>Lollo-Stamp - Supabase & Bluetooth Bridge</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
@@ -31,7 +31,6 @@
             flex-direction: column;
         }
 
-        /* Barra di navigazione superiore (stile app madre) */
         header {
             background-color: #0d1322;
             border-bottom: 1px solid var(--border-card);
@@ -46,10 +45,6 @@
             display: flex;
             gap: 24px;
             color: var(--text-muted);
-        }
-
-        .nav-links span {
-            cursor: pointer;
         }
 
         .nav-links span.active {
@@ -80,7 +75,6 @@
             box-shadow: 0 0 8px var(--accent-green);
         }
 
-        /* Contenitore Principale */
         main {
             flex: 1;
             display: flex;
@@ -109,7 +103,6 @@
             letter-spacing: 0.5px;
         }
 
-        /* Card in stile gestionale */
         .card {
             background-color: var(--bg-card);
             border: 1px solid var(--border-card);
@@ -125,21 +118,6 @@
             color: var(--text-muted);
             text-transform: uppercase;
             margin-bottom: 12px;
-            letter-spacing: 0.5px;
-        }
-
-        /* Pulsanti e Stati */
-        .btn-status {
-            background: transparent;
-            border: 2px solid var(--accent-green);
-            color: var(--accent-green);
-            padding: 12px;
-            border-radius: 8px;
-            font-weight: bold;
-            text-align: center;
-            width: 100%;
-            box-shadow: 0 0 12px var(--accent-glow);
-            font-size: 14px;
             letter-spacing: 0.5px;
         }
 
@@ -165,20 +143,6 @@
             background-color: #0284c7;
         }
 
-        .endpoint-box {
-            background-color: #070a12;
-            border: 1px solid var(--border-card);
-            padding: 12px;
-            border-radius: 6px;
-            text-align: center;
-            font-family: monospace;
-            color: #38bdf8;
-            font-size: 15px;
-            letter-spacing: 0.5px;
-            margin-top: 8px;
-        }
-
-        /* Terminale di log */
         .log-box {
             background-color: #070a12;
             border: 1px solid var(--border-card);
@@ -187,7 +151,7 @@
             font-family: monospace;
             font-size: 11px;
             color: var(--text-muted);
-            height: 90px;
+            height: 120px;
             overflow-y: auto;
         }
 
@@ -198,117 +162,136 @@
 
     <header>
         <div class="nav-links">
-            <span>Dashboard</span>
-            <span class="active">Bridge Stampante</span>
-            <span>Impostazioni</span>
+            <span class="active">Bridge Supabase & Bluetooth</span>
         </div>
         <div class="nav-right">
             <div class="status-badge">
                 <div class="dot-online"></div>
-                <span>Online</span>
+                <span>Connesso</span>
             </div>
         </div>
     </header>
 
     <main>
         <h1>LOLLO-STAMP</h1>
-        <div class="subtitle">Android Fiber Bridge (Web View)</div>
+        <div class="subtitle">Cloud Direct Bridge</div>
 
         <div class="card">
-            <div class="card-title">Stato del Bridge</div>
-            <div class="btn-status">ONLINE & PRONTO</div>
-        </div>
-
-        <div class="card">
-            <div class="card-title">Gestione Stampante Bluetooth</div>
+            <div class="card-title">Connessione Stampante Bluetooth</div>
             <button class="btn-action" onclick="connettiBluetooth()">
-                🔗 Collega / Seleziona Stampante
+                🔗 Associa Stampante Termica
             </button>
             <div id="bt-status" style="font-size: 12px; color: var(--text-muted); margin-top: 10px; text-align: center;">
-                Stato Bluetooth: In attesa di associazione...
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-title">Endpoint Locale Wi-Fi</div>
-            <div class="endpoint-box">http://192.168.1.150:8080/print</div>
-            <div style="font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 8px;">
-                Configura questo endpoint sul tuo gestionale web
+                Stato: In attesa di associazione Bluetooth...
             </div>
         </div>
 
         <div class="card" style="margin-bottom: 0;">
-            <div class="card-title">Console Log</div>
+            <div class="card-title">Console Log in Tempo Reale</div>
             <div class="log-box" id="console-log">
-                <span class="log-success">[SYSTEM]</span> Pagina web caricata correttamente.<br>
-                [BRIDGE] In attesa di istruzioni di stampa...
+                <span class="log-success">[SYSTEM]</span> Interfaccia avviata. Clicca su associa stampante.<br>
             </div>
         </div>
     </main>
 
   <script>
-    // --- INSERISCI QUI LE TUE CREDENZIALI SUPABASE ---
-    const SUPABASE_URL = https://cqyrhemajhdtxeiptkue.supabase.co
-;
-    const SUPABASE_KEY = sb_publishable_g9Xn_n06Ho7rBvwWf50EpA_LddX8JSg;
+    const SUPABASE_URL = "https://cqyrhemajhdtxeiptkue.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_g9Xn_n06Ho7rBvwWf50EpA_LddX8JSg";
 
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let bluetoothDevice = null;
+    let bluetoothCharacteristic = null;
 
-    // Funzione per connettere la stampante Bluetooth
+    // Funzione per connettere la stampante Bluetooth e abilitare subito Supabase
     async function connettiBluetooth() {
         const statusEl = document.getElementById('bt-status');
         const logEl = document.getElementById('console-log');
         
         try {
-            statusEl.innerText = "Ricerca stampanti in corso...";
+            statusEl.innerText = "Ricerca dispositivi Bluetooth...";
             
+            // Richiede la connessione al dispositivo Bluetooth (stampante termica)
             bluetoothDevice = await navigator.bluetooth.requestDevice({
                 acceptAllDevices: true,
                 optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
             });
 
-            statusEl.innerText = "Connesso a: " + (bluetoothDevice.name || "Stampante BT");
+            const server = await bluetoothDevice.gatt.connect();
+            const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+            bluetoothCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb'); // Caratteristica tipica di scrittura ESC/POS
+
+            statusEl.innerText = "Connesso a: " + (bluetoothDevice.name || "Stampante Termica");
             statusEl.style.color = "var(--accent-green)";
             
-            logEl.innerHTML += `<br><span class="log-success">[BLUETOOTH]</span> Stampante "${bluetoothDevice.name}" collegata!`;
+            logEl.innerHTML += `<br><span class="log-success">[BLUETOOTH]</span> Stampante "${bluetoothDevice.name || 'Termica'}" collegata con successo!`;
             logEl.scrollTop = logEl.scrollHeight;
 
-            // Una volta connesso il Bluetooth, avviamo l'ascolto di Supabase
-            ascoltaOrdiniSupabase();
+            // Avvia l'ascolto dei dati esclusivamente da Supabase
+            avviaAscoltoSupabase();
 
         } catch (error) {
             console.error(error);
-            statusEl.innerText = "Connessione Bluetooth fallita.";
+            statusEl.innerText = "Connessione Bluetooth fallita o annullata.";
             statusEl.style.color = "#f87171";
             logEl.innerHTML += `<br><span style="color: #f87171;">[ERRORE BT]</span> ${error.message}`;
             logEl.scrollTop = logEl.scrollHeight;
         }
     }
 
-    // Funzione per mettersi in ascolto dei nuovi ordini in tempo reale
-    function ascoltaOrdiniSupabase() {
+    // Ascolta in tempo reale la tabella 'ordini' di Supabase senza passare per server locali
+    function avviaAscoltoSupabase() {
         const logEl = document.getElementById('console-log');
-        logEl.innerHTML += `<br><span class="log-success">[SUPABASE]</span> In ascolto di nuove comande...`;
+        logEl.innerHTML += `<br><span class="log-success">[SUPABASE]</span> Ascolto realtime attivo sulla tabella 'ordini'...`;
+        logEl.scrollTop = logEl.scrollHeight;
 
         supabase
             .channel('public:ordini')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ordini' }, payload => {
-                console.log('Nuovo ordine ricevuto!', payload.new);
-                logEl.innerHTML += `<br><span class="log-success">[COMANDA]</span> Nuovo ordine per il Tavolo #${payload.new.tavolo}!`;
+                const nuovoOrdine = payload.new;
+                logEl.innerHTML += `<br><span class="log-success">[SUPABASE]</span> Ricevuto ordine Tavolo #${nuovoOrdine.tavolo}`;
                 logEl.scrollTop = logEl.scrollHeight;
 
-                stampaComanda(payload.new);
+                inviaDatiAllaStampante(nuovoOrdine);
             })
             .subscribe();
     }
 
-    // Funzione per la stampa (da espandere con i comandi ESC/POS per la stampante termica)
-    async function stampaComanda(ordine) {
-        console.log("Invio alla stampante l'ordine del tavolo: " + ordine.tavolo);
+    // Invia i dati formattati direttamente alla stampante Bluetooth via ESC/POS
+    async function inviaDatiAllaStampante(ordine) {
+        const logEl = document.getElementById('console-log');
+        
+        if (!bluetoothCharacteristic) {
+            logEl.innerHTML += `<br><span style="color: #f87171;">[ERRORE]</span> Impossibile stampare: Stampante Bluetooth non connessa!`;
+            logEl.scrollTop = logEl.scrollHeight;
+            return;
+        }
+
+        try {
+            // Generazione comandi ESC/POS di base per la stampa dello scontrino
+            const encoder = new TextEncoder();
+            let testoStampa = `\x1B\x40`; // Inizializza stampante
+            testoStampa += `\x1B\x61\x01`; // Allineamento Centrato
+            testoStampa += `LOLLO-STAMP\n`;
+            testoStampa += `--------------------------------\n`;
+            testoStampa += `Tavolo: ${ordine.tavolo}\n`;
+            testoStampa += `Dettagli: ${ordine.dettagli || 'Nessun dettaglio'}\n`;
+            testoStampa += `--------------------------------\n\n\n`;
+
+            const encodedData = encoder.encode(testoStampa);
+            
+            // Invio dei pacchetti via Bluetooth alla stampante
+            await bluetoothCharacteristic.writeValue(encodedData);
+            
+            logEl.innerHTML += `<br><span class="log-success">[STAMPA]</span> Ordine Tavolo #${ordine.tavolo} stampato correttamente!`;
+            logEl.scrollTop = logEl.scrollHeight;
+
+        } catch (error) {
+            console.error("Errore di scrittura Bluetooth:", error);
+            logEl.innerHTML += `<br><span style="color: #f87171;">[ERRORE STAMPA]</span> ${error.message}`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
     }
 </script>
 </body>
 </html>
-

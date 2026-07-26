@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
 // 1. Inserisci qui le tue chiavi di Supabase (le stesse prese dalla dashboard)
-const SUPABASE_URL = "https://tcejemysktofcmfhvgoj.supabase.co/rest/v1/";
+const SUPABASE_URL = "https://tcejemysktofcmfhvgoj.supabase.co";
 const SUPABASE_KEY = "sb_publishable_cpLpaon8UubJw7jbYr8s5Q_p7JNP5J7";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 

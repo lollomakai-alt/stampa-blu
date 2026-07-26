@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
 // 1. Credenziali di Supabase
-const SUPABASE_URL = "https://cqyrhemajhdtxeiptkue.supabase.co";
-const SUPABASE_KEY = "sb_publishable_cpLpaon8UubJw7jbYr8s5Q_p7JNP5J7";
+const SUPABASE_URL = "https://yyrawuynqukwszvotiuu.supabase.co/rest/v1/";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5cmF3dXlucXVrd3N6dm90aXV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwOTQ0NDAsImV4cCI6MjEwMDY3MDQ0MH0.TL_s3_j8sMX_E3IpqmXj-yiPlWTdEHw4zzPB-3RUCo8";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // 2. Funzione che avvia l'ascolto in tempo reale degli ordini

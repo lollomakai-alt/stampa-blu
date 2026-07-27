@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lollo-Stamp Bridge</title>
+    <!-- Inclusione della libreria Supabase via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body {
             background-color: #0a0e17;
@@ -65,7 +67,7 @@
             font-family: monospace;
             font-size: 11px;
             color: #39FF14;
-            height: 120px;
+            height: 140px;
             overflow-y: auto;
         }
         .status-badge {
@@ -105,15 +107,25 @@
 </div>
 
 <script>
+    // --- CONFIGURAZIONE SUPABASE ---
+    const SUPABASE_URL = 'IL_TUO_SUPABASE_URL'; // Sostituisci con il tuo URL
+    const SUPABASE_KEY = 'IL_TUO_SUPABASE_ANON_KEY'; // Sostituisci con la tua chiave Anon/Public
+    
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let bluetoothDevice = null;
+    let bluetoothCharacteristic = null;
+
     function addLog(msg) {
         const logBox = document.getElementById('logBox');
         logBox.innerHTML += `<br>[${new Date().toLocaleTimeString()}] ${msg}`;
         logBox.scrollTop = logBox.scrollHeight;
     }
 
+    // 1. Connessione Bluetooth e salvataggio della caratteristica di scrittura
     async function connettiStampante() {
         if (!navigator.bluetooth) {
-            alert("Il Bluetooth non è supportato da questo browser. Usa Google Chrome su Android.");
+            alert("Il Bluetooth non è supportato da questo browser. Usa Google Chrome su Android o Desktop.");
             addLog("ERRORE: Bluetooth Web API non supportata.");
             return;
         }
@@ -121,27 +133,148 @@
         try {
             addLog("Apertura ricerca dispositivi Bluetooth...");
             
-            // Richiede la connessione alla stampante (filtra per nome o accetta tutto)
-            const device = await navigator.bluetooth.requestDevice({
+            bluetoothDevice = await navigator.bluetooth.requestDevice({
                 acceptAllDevices: true,
-                // Se vuoi filtrare solo le stampanti, puoi usare: filters: [{ namePrefix: 'POS' }]
+                optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'] // UUID comune per stampanti termiche ESC/POS, o rimuovi se genera problemi e usa acceptAllDevices
             });
 
-            addLog(`Dispositivo selezionato: ${device.name}`);
-            document.getElementById('statusBadge').innerText = `Connesso a: ${device.name}`;
-            document.getElementById('statusBadge').classList.add('connected');
+            addLog(`Dispositivo selezionato: ${bluetoothDevice.name}`);
+            
+            const server = await bluetoothDevice.gatt.connect();
+            addLog("Connessione GATT stabilita. Cerco il servizio di stampa...");
 
-            const server = await device.gatt.connect();
-            addLog("Connessione GATT stabilita con successo!");
+            // Tentativo di ottenimento del servizio e della caratteristica di scrittura (solitamente FF00 o 18F0)
+            const services = await server.getPrimaryServices();
+            for (const service of services) {
+                const characteristics = await service.getCharacteristics();
+                for (const char of characteristics) {
+                    if (char.properties.write || char.properties.writeWithoutResponse) {
+                        bluetoothCharacteristic = char;
+                        break;
+                    }
+                }
+                if (bluetoothCharacteristic) break;
+            }
+
+            document.getElementById('statusBadge').innerText = `Connesso a: ${bluetoothDevice.name}`;
+            document.getElementById('statusBadge').classList.add('connected');
+            addLog("Stampante pronta e configurata con successo!");
+
+            // Appena connesso, controlla se ci sono ordini arretrati in coda
+            processPendingJobs();
 
         } catch (error) {
             console.error(error);
             addLog(`Errore/Annullato: ${error.message}`);
         }
     }
+
+    // 2. Funzione per inviare i dati binari/testo alla stampante termica
+    async function sendToPrinter(payloadData) {
+        if (!bluetoothDevice || !bluetoothDevice.gatt.connected) {
+            throw new Error("Stampante Bluetooth disconnessa.");
+        }
+
+        // Formattazione base del payload in stringa da stampare
+        let textToPrint = `\n--- ${payloadData.type || 'ORDINE'} ---\n`;
+        if (payloadData.items && Array.isArray(payloadData.items)) {
+            payloadData.items.forEach(item => {
+                textToPrint += `Qta: ${item.qty} | Articolo: ${item.name || 'Generico'}\n`;
+            });
+        } else {
+            textToPrint += JSON.stringify(payloadData) + "\n";
+        }
+        textToPrint += "--------------------\n\n\n";
+
+        const encoder = new TextEncoder();
+        const data = encoder.encode(textToPrint);
+
+        if (bluetoothCharacteristic) {
+            // Invio a blocchi se necessario o diretto
+            await bluetoothCharacteristic.writeValue(data);
+        } else {
+            throw new Error("Caratteristica di scrittura Bluetooth non trovata.");
+        }
+    }
+
+    // 3. Elaborazione della coda (Coda Offline / Recupero ordini non stampati)
+    async function processPendingJobs() {
+        if (!bluetoothDevice || !bluetoothDevice.gatt.connected) {
+            addLog("Stampante offline. Impossibile elaborare la coda.");
+            return;
+        }
+
+        addLog("Controllo ordini in coda su Supabase...");
+
+        // Preleva tutti i record con status 'nuovo' ordinati dal più vecchio al più recente
+        const { data: pendingJobs, error } = await supabaseClient
+            .from('print_jobs')
+            .select('*')
+            .eq('status', 'nuovo')
+            .order('id', { ascending: true });
+
+        if (error) {
+            addLog(`Errore lettura DB: ${error.message}`);
+            return;
+        }
+
+        if (pendingJobs && pendingJobs.length > 0) {
+            addLog(`Trovati ${pendingJobs.length} ordini da stampare.`);
+            
+            for (const job of pendingJobs) {
+                try {
+                    addLog(`Invio in stampa ordine ID: ${job.id}...`);
+                    await sendToPrinter(job.payload);
+
+                    // Aggiorna lo stato su Supabase a 'stampato' solo a stampa avvenuta
+                    const { error: updateError } = await supabaseClient
+                        .from('print_jobs')
+                        .update({ status: 'stampato' })
+                        .eq('id', job.id);
+
+                    if (updateError) {
+                        addLog(`Errore aggiornamento stato ID ${job.id}: ${updateError.message}`);
+                        break; 
+                    } else {
+                        addLog(`Ordine ID ${job.id} stampato e aggiornato con successo!`);
+                    }
+                } catch (err) {
+                    addLog(`Errore di stampa su ID ${job.id}: ${err.message}. Interrompo la coda.`);
+                    break; // Interrompe il ciclo se la stampante si scollega durante l'invio
+                }
+            }
+        } else {
+            addLog("Nessun ordine in sospeso.");
+        }
+    }
+
+    // 4. Ascolto in tempo reale dei nuovi inserimenti (Realtime)
+    supabaseClient
+        .channel('public:print_jobs')
+        .on('postgres_changes', { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'print_jobs' 
+        }, async (payload) => {
+            if (payload.new && payload.new.status === 'nuovo') {
+                addLog(`Nuovo ordine ricevuto in tempo reale! ID: ${payload.new.id}`);
+                await processPendingJobs();
+            }
+        })
+        .subscribe((status) => {
+            addLog(`Canale Realtime Supabase: ${status}`);
+        });
+
+    // Controllo periodico di sicurezza ogni 30 secondi nel caso la connessione Realtime decada
+    setInterval(() => {
+        if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+            processPendingJobs();
+        }
+    }, 30000);
 </script>
 
 </body>
 </html>
+
 
 

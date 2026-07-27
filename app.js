@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, StatusBar, ActivityIndicator, ScrollView } from 'react-native';
 import { BleManager } from 'react-native-ble-plx';
+import { createClient } from '@supabase/supabase-js';
+
+// --- CONFIGURAZIONE SUPABASE ---
+const SUPABASE_URL = 'IL_TUO_SUPABASE_URL'; // Sostituisci con il tuo URL
+const SUPABASE_KEY = 'IL_TUO_SUPABASE_ANON_KEY'; // Sostituisci con la tua chiave Anon/Public
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const bleManager = new BleManager();
 
@@ -12,7 +18,85 @@ export default function App() {
   const [logs, setLogs] = useState(['[SYSTEM] Bridge avviato in attesa...']);
 
   const addLog = (msg) => {
-    setLogs(prev => [ `[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 5) ]);
+    setLogs(prev => [ `[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 8) ]);
+  };
+
+  // Funzione per inviare i dati alla stampante Bluetooth connessa
+  const sendDataToPrinter = async (payloadData) => {
+    if (!connectedDevice) {
+      throw new Error("Stampante non connessa.");
+    }
+
+    // Formattazione base dei dati da inviare alla stampante ESC/POS
+    let textToPrint = `\n--- ${payloadData.type || 'ORDINE'} ---\n`;
+    if (payloadData.items && Array.isArray(payloadData.items)) {
+      payloadData.items.forEach(item => {
+        textToPrint += `Qta: ${item.qty} | Articolo: ${item.name || 'Generico'}\n`;
+      });
+    } else {
+      textToPrint += JSON.stringify(payloadData) + "\n";
+    }
+    textToPrint += "--------------------\n\n\n";
+
+    // Nota: A seconda della libreria BLE utilizzata e del modello di stampante, 
+    // qui va effettuata la scrittura sulla caratteristica GATT individuata.
+    addLog(`Invio dati a ${connectedDevice.name}...`);
+    // Simulazione invio o scrittura effettiva tramite caratteristiche BLE
+    // await connectedDevice.writeCharacteristicWithResponseForService(...);
+  };
+
+  // Funzione per elaborare la coda offline da Supabase
+  const processPendingJobs = async () => {
+    if (!connectedDevice) {
+      addLog("Impossibile elaborare la coda: stampante disconnessa.");
+      return;
+    }
+
+    addLog("Controllo ordini in coda su Supabase...");
+
+    try {
+      const { data: pendingJobs, error } = await supabase
+        .from('print_jobs')
+        .select('*')
+        .eq('status', 'nuovo')
+        .order('id', { ascending: true });
+
+      if (error) {
+        addLog(`Errore lettura DB: ${error.message}`);
+        return;
+      }
+
+      if (pendingJobs && pendingJobs.length > 0) {
+        addLog(`Trovati ${pendingJobs.length} ordini in sospeso.`);
+
+        for (const job of pendingJobs) {
+          try {
+            addLog(`Stampa ordine ID: ${job.id}...`);
+            await sendDataToPrinter(job.payload);
+
+            // Aggiorna lo stato su Supabase a 'stampato' solo a stampa riuscita
+            const { error: updateError } = await supabase
+              .from('print_jobs')
+              .update({ status: 'stampato' })
+              .eq('id', job.id);
+
+            if (updateError) {
+              addLog(`Errore aggiornamento stato ID ${job.id}: ${updateError.message}`);
+              break;
+            } else {
+              addLog(`Ordine ID ${job.id} stampato e aggiornato con successo!`);
+            }
+          } catch (printErr) {
+            addLog(`Errore stampante su ID ${job.id}: ${printErr.message}`);
+            break; // Interrompe la coda se si perde la connessione durante la stampa
+          }
+        }
+      } else {
+        addLog("Nessun ordine arretrato in coda.");
+      }
+    } catch (err) {
+      addLog(`Errore elaborazione coda: ${err.message}`);
+    }
   };
 
   // Funzione unificata per la connessione Bluetooth
@@ -22,8 +106,7 @@ export default function App() {
     addLog('Controllo periferiche Bluetooth memorizzate...');
 
     try {
-      // 1. Prima controlla se ci sono dispositivi già connessi o noti al sistema
-      const connectedDevices = await bleManager.connectedDevicesInsecure ? [] : await bleManager.connectedDevices([]);
+      const connectedDevices = await bleManager.connectedDevices([]);
       
       let targetDevice = connectedDevices.find(d => 
         d.name && (d.name.toUpperCase().includes('PRINT') || d.name.toUpperCase().includes('POS') || d.name.toUpperCase().includes('MTP'))
@@ -34,10 +117,10 @@ export default function App() {
         setConnectedDevice(targetDevice);
         setPrinterStatus('CONNESSO & PRONTO');
         setIsScanning(false);
+        processPendingJobs(); // Avvia la stampa della coda accumulata
         return;
       }
 
-      // 2. Se non è già connesso, avvia la scansione rapida
       setPrinterStatus('SCANSIONE BLUETOOTH...');
       addLog('Avvio scansione circostante...');
 
@@ -65,6 +148,9 @@ export default function App() {
               setConnectedDevice(fullyConnected);
               setPrinterStatus('CONNESSO & PRONTO');
               addLog(`Connesso con successo a ${fullyConnected.name}`);
+              
+              // Appena connesso, elabora la coda offline
+              processPendingJobs();
             } catch (err) {
               setIsScanning(false);
               setPrinterStatus('FALLITO');
@@ -74,7 +160,6 @@ export default function App() {
         }
       });
 
-      // Timeout di sicurezza a 8 secondi
       setTimeout(() => {
         bleManager.stopDeviceScan();
         if (isScanning) {
@@ -90,6 +175,37 @@ export default function App() {
       addLog(`Eccezione: ${err.message}`);
     }
   };
+
+  // Configurazione Realtime Supabase all'avvio dell'app
+  useEffect(() => {
+    const channel = supabase
+      .channel('public:print_jobs')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'print_jobs' 
+      }, async (payload) => {
+        if (payload.new && payload.new.status === 'nuovo') {
+          addLog(`Nuovo ordine in tempo reale! ID: ${payload.new.id}`);
+          await processPendingJobs();
+        }
+      })
+      .subscribe((status) => {
+        addLog(`Stato Realtime Supabase: ${status}`);
+      });
+
+    // Controllo periodico di sicurezza ogni 30 secondi
+    const interval = setInterval(() => {
+      if (connectedDevice) {
+        processPendingJobs();
+      }
+    }, 30000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [connectedDevice]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -175,7 +291,7 @@ const styles = StyleSheet.create({
   headerSubtitle: { fontSize: 11, color: '#9CA3AF', marginTop: 4, letterSpacing: 1 },
   content: { padding: 20, gap: 15 },
   card: { backgroundColor: CARD_BG, borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 12, padding: 18 },
-  logCard: { backgroundColor: CARD_BG, borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 12, padding: 15, minHeight: 100 },
+  logCard: { backgroundColor: CARD_BG, borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 12, padding: 15, minHeight: 120 },
   cardLabel: { fontSize: 11, color: '#9CA3AF', marginBottom: 10, letterSpacing: 1, fontWeight: '600' },
   ledBox: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#030712' },
   ledBoxActive: { borderColor: LED_GREEN },
@@ -196,4 +312,5 @@ const styles = StyleSheet.create({
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: LED_GREEN, marginRight: 8 },
   footerText: { fontSize: 10, color: '#9CA3AF', letterSpacing: 1, fontWeight: '600' }
 });
+
 

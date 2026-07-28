@@ -1,30 +1,32 @@
-// Inizializza qui il client Supabase (assicurati di avere importato la libreria o lo script di Supabase in index.html)
+// Inizializza il client Supabase
 const SUPABASE_URL = 'https://yyrawuynqukwszvotiuu.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b';
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-let bluetoothDevice = null;
+// Variabile con nome univoco per evitare conflitti con index.html
+let myPrinterDevice = null;
 
-// 1. Funzione per connettere la stampante termica Bluetooth dal browser
+// 1. Connessione alla stampante Bluetooth
 async function connettiStampante() {
   try {
     console.log("Apertura ricerca dispositivi Bluetooth...");
-    bluetoothDevice = await navigator.bluetooth.requestDevice({
+    myPrinterDevice = await navigator.bluetooth.requestDevice({
       acceptAllDevices: true,
-      optionalServices: ["000018f0-0000-1000-8000-00805f9b34fb"] // Sostituisci o aggiungi gli UUID della tua stampante se necessario
+      optionalServices: ["000018f0-0000-1000-8000-00805f9b34fb"]
     });
-
-    console.log(`Dispositivo selezionato: ${bluetoothDevice.name}`);
+    console.log(`Dispositivo selezionato: ${myPrinterDevice.name}`);
     
     // Gestione disconnessione
-    bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
+    myPrinterDevice.addEventListener('gattserverdisconnected', onDisconnected);
 
     // Connessione GATT
-    const server = await bluetoothDevice.gatt.connect();
+    await myPrinterDevice.gatt.connect();
     console.log("Stampante Bluetooth connessa con successo!");
     
-    // Aggiorna l'interfaccia se hai un elemento visivo
-    document.getElementById("status-connessione").innerText = "Stampante Connessa: " + bluetoothDevice.name;
+    const statusElem = document.getElementById("status-connessione");
+    if (statusElem) {
+      statusElem.innerText = "Stampante Connessa: " + myPrinterDevice.name;
+    }
 
   } catch (error) {
     console.error("Errore/Annullato:", error);
@@ -34,16 +36,17 @@ async function connettiStampante() {
 
 function onDisconnected(event) {
   console.log(`Dispositivo disconnesso: ${event.target.name}`);
-  bluetoothDevice = null;
-  document.getElementById("status-connessione").innerText = "In attesa di associazione Bluetooth...";
+  myPrinterDevice = null;
+  const statusElem = document.getElementById("status-connessione");
+  if (statusElem) {
+    statusElem.innerText = "In attesa di associazione Bluetooth...";
+  }
 }
 
-// 2. Funzione per pescare da Supabase e stampare
+// 2. Recupero e stampa da Supabase
 async function stampaUltimoOrdineDaSupabase() {
   try {
     console.log("Recupero ordine da Supabase...");
-    
-    // Esempio: legge l'ultimo ordine inserito nella tabella 'ordini'
     const { data, error } = await supabaseClient
       .from('ordini')
       .select('*')
@@ -60,21 +63,19 @@ async function stampaUltimoOrdineDaSupabase() {
     const ultimoOrdine = data[0];
     console.log("Ordine trovato:", ultimoOrdine);
 
-    // Esegue la stampa fisica
-    await stampaOrdineSuStampanteTermica(ultimoOrdine, bluetoothDevice);
+    await stampaOrdineSuStampanteTermica(ultimoOrdine, myPrinterDevice);
 
   } catch (err) {
     console.error("Errore nel recupero o stampa da Supabase:", err);
   }
 }
 
-// 3. Funzione fisica di invio comandi ESC/POS alla stampante
+// 3. Invio comandi ESC/POS
 async function stampaOrdineSuStampanteTermica(ordine, device) {
   if (!device || !device.gatt.connected) {
     throw new Error("Stampante Bluetooth non connessa!");
   }
 
-  // Costruzione comandi ESC/POS
   let textToPrint = "\x1B\x40"; // Inizializza
   textToPrint += "\x1B\x61\x01"; // Centrato
   textToPrint += "--- NAKAI TIKI BAR ---\n";
@@ -100,7 +101,6 @@ async function stampaOrdineSuStampanteTermica(ordine, device) {
   const service = await server.getPrimaryService(SERVICE_UUID);
   const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
 
-  // Invio a blocchi
   const MAX_CHUNK_SIZE = 512;
   for (let i = 0; i < dataBytes.length; i += MAX_CHUNK_SIZE) {
     const chunk = dataBytes.slice(i, i + MAX_CHUNK_SIZE);
@@ -109,7 +109,3 @@ async function stampaOrdineSuStampanteTermica(ordine, device) {
 
   console.log("Stampa completata con successo!");
 }
-
-
-
-

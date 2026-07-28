@@ -4,8 +4,8 @@ import { BleManager } from 'react-native-ble-plx';
 import { createClient } from '@supabase/supabase-js';
 
 // --- CONFIGURAZIONE SUPABASE ---
-const SUPABASE_URL = 'IL_TUO_SUPABASE_URL'; // Sostituisci con il tuo URL
-const SUPABASE_KEY = 'IL_TUO_SUPABASE_ANON_KEY'; // Sostituisci con la tua chiave Anon/Public
+const SUPABASE_URL = 'https://yyrawuynqukwszvotiuu.supabase.co'; // Sostituisci con il tuo URL
+const SUPABASE_KEY = 'sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b'; // Sostituisci con la tua chiave Anon/Public
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const bleManager = new BleManager();

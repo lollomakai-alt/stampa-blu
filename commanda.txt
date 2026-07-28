@@ -1,1 +1,1 @@
-{"tavolo": "1", "type": "COMANDA"}
+

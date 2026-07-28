@@ -108,12 +108,12 @@
 
 <script>
     // --- CONFIGURAZIONE SUPABASE ---
-    const SUPABASE_URL = 'IL_TUO_SUPABASE_URL'; // Sostituisci con il tuo URL
-    const SUPABASE_KEY = 'IL_TUO_SUPABASE_ANON_KEY'; // Sostituisci con la tua chiave Anon/Public
+    const SUPABASE_URL = 'https://yyrawuynqukwszvotiuu.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b';
     
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    let bluetoothDevice = null;
+    let myPrinterDevice = null;
     let bluetoothCharacteristic = null;
 
     function addLog(msg) {
@@ -133,17 +133,16 @@
         try {
             addLog("Apertura ricerca dispositivi Bluetooth...");
             
-            bluetoothDevice = await navigator.bluetooth.requestDevice({
+            myPrinterDevice = await navigator.bluetooth.requestDevice({
                 acceptAllDevices: true,
-                optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'] // UUID comune per stampanti termiche ESC/POS, o rimuovi se genera problemi e usa acceptAllDevices
+                optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
             });
 
-            addLog(`Dispositivo selezionato: ${bluetoothDevice.name}`);
+            addLog(`Dispositivo selezionato: ${myPrinterDevice.name}`);
             
-            const server = await bluetoothDevice.gatt.connect();
+            const server = await myPrinterDevice.gatt.connect();
             addLog("Connessione GATT stabilita. Cerco il servizio di stampa...");
 
-            // Tentativo di ottenimento del servizio e della caratteristica di scrittura (solitamente FF00 o 18F0)
             const services = await server.getPrimaryServices();
             for (const service of services) {
                 const characteristics = await service.getCharacteristics();
@@ -156,11 +155,10 @@
                 if (bluetoothCharacteristic) break;
             }
 
-            document.getElementById('statusBadge').innerText = `Connesso a: ${bluetoothDevice.name}`;
+            document.getElementById('statusBadge').innerText = `Connesso a: ${myPrinterDevice.name}`;
             document.getElementById('statusBadge').classList.add('connected');
             addLog("Stampante pronta e configurata con successo!");
 
-            // Appena connesso, controlla se ci sono ordini arretrati in coda
             processPendingJobs();
 
         } catch (error) {
@@ -169,17 +167,16 @@
         }
     }
 
-    // 2. Funzione per inviare i dati binari/testo alla stampante termica
+    // 2. Funzione per inviare i dati alla stampante termica
     async function sendToPrinter(payloadData) {
-        if (!bluetoothDevice || !bluetoothDevice.gatt.connected) {
+        if (!myPrinterDevice || !myPrinterDevice.gatt.connected) {
             throw new Error("Stampante Bluetooth disconnessa.");
         }
 
-        // Formattazione base del payload in stringa da stampare
         let textToPrint = `\n--- ${payloadData.type || 'ORDINE'} ---\n`;
         if (payloadData.items && Array.isArray(payloadData.items)) {
             payloadData.items.forEach(item => {
-                textToPrint += `Qta: ${item.qty} | Articolo: ${item.name || 'Generico'}\n`;
+                textToPrint += `Qta: ${item.qty} | Articolo: ${item.name || item.nome || 'Generico'}\n`;
             });
         } else {
             textToPrint += JSON.stringify(payloadData) + "\n";
@@ -190,23 +187,21 @@
         const data = encoder.encode(textToPrint);
 
         if (bluetoothCharacteristic) {
-            // Invio a blocchi se necessario o diretto
             await bluetoothCharacteristic.writeValue(data);
         } else {
             throw new Error("Caratteristica di scrittura Bluetooth non trovata.");
         }
     }
 
-    // 3. Elaborazione della coda (Coda Offline / Recupero ordini non stampati)
+    // 3. Elaborazione della coda
     async function processPendingJobs() {
-        if (!bluetoothDevice || !bluetoothDevice.gatt.connected) {
+        if (!myPrinterDevice || !myPrinterDevice.gatt.connected) {
             addLog("Stampante offline. Impossibile elaborare la coda.");
             return;
         }
 
         addLog("Controllo ordini in coda su Supabase...");
 
-        // Preleva tutti i record con status 'nuovo' ordinati dal più vecchio al più recente
         const { data: pendingJobs, error } = await supabaseClient
             .from('print_jobs')
             .select('*')
@@ -226,7 +221,6 @@
                     addLog(`Invio in stampa ordine ID: ${job.id}...`);
                     await sendToPrinter(job.payload);
 
-                    // Aggiorna lo stato su Supabase a 'stampato' solo a stampa avvenuta
                     const { error: updateError } = await supabaseClient
                         .from('print_jobs')
                         .update({ status: 'stampato' })
@@ -240,7 +234,7 @@
                     }
                 } catch (err) {
                     addLog(`Errore di stampa su ID ${job.id}: ${err.message}. Interrompo la coda.`);
-                    break; // Interrompe il ciclo se la stampante si scollega durante l'invio
+                    break;
                 }
             }
         } else {
@@ -248,7 +242,7 @@
         }
     }
 
-    // 4. Ascolto in tempo reale dei nuovi inserimenti (Realtime)
+    // 4. Ascolto in tempo reale
     supabaseClient
         .channel('public:print_jobs')
         .on('postgres_changes', { 
@@ -265,9 +259,8 @@
             addLog(`Canale Realtime Supabase: ${status}`);
         });
 
-    // Controllo periodico di sicurezza ogni 30 secondi nel caso la connessione Realtime decada
     setInterval(() => {
-        if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+        if (myPrinterDevice && myPrinterDevice.gatt.connected) {
             processPendingJobs();
         }
     }, 30000);
@@ -275,6 +268,3 @@
 
 </body>
 </html>
-
-
-

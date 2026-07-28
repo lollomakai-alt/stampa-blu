@@ -109,7 +109,7 @@ async function stampaOrdineSuStampanteTermica(ordine, device) {
 
   console.log("Stampa completata con successo!");
 }
-}
+
 
 
 

@@ -111,21 +111,30 @@
     const SUPABASE_URL = 'https://yyrawuynqukwszvotiuu.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b';
     
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    let supabaseClient = null;
+    try {
+        if (SUPABASE_URL && SUPABASE_KEY) {
+            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        }
+    } catch (e) {
+        console.error("Errore inizializzazione Supabase:", e);
+    }
 
-    let myPrinterDevice = null;
+    let bluetoothDevice = null;
     let bluetoothCharacteristic = null;
 
     function addLog(msg) {
         const logBox = document.getElementById('logBox');
-        logBox.innerHTML += `<br>[${new Date().toLocaleTimeString()}] ${msg}`;
-        logBox.scrollTop = logBox.scrollHeight;
+        if (logBox) {
+            logBox.innerHTML += `<br>[${new Date().toLocaleTimeString()}] ${msg}`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
     }
 
     // 1. Connessione Bluetooth
     async function connettiStampante() {
         if (!navigator.bluetooth) {
-            alert("Il Bluetooth non è supportato da questo browser. Usa Google Chrome su Android o Desktop.");
+            alert("Il Bluetooth non è supportato da questo browser. Usa Google Chrome.");
             addLog("ERRORE: Bluetooth Web API non supportata.");
             return;
         }
@@ -133,31 +142,50 @@
         try {
             addLog("Apertura ricerca dispositivi Bluetooth...");
             
-            myPrinterDevice = await navigator.bluetooth.requestDevice({
+            bluetoothDevice = await navigator.bluetooth.requestDevice({
                 acceptAllDevices: true,
-                optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+                optionalServices: [
+                    '000018f0-0000-1000-8000-00805f9b34fb',
+                    '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+                    'e7810a71-73ae-499d-8c15-faa9aef0c3f2'
+                ]
             });
 
-            addLog(`Dispositivo selezionato: ${myPrinterDevice.name}`);
+            addLog(`Dispositivo selezionato: ${bluetoothDevice.name || 'Sconosciuto'}`);
             
-            const server = await myPrinterDevice.gatt.connect();
-            addLog("Connessione GATT stabilita. Cerco il servizio di stampa...");
+            const server = await bluetoothDevice.gatt.connect();
+            addLog("Connessione GATT stabilita. Ricerca servizi in corso...");
 
             const services = await server.getPrimaryServices();
             for (const service of services) {
-                const characteristics = await service.getCharacteristics();
-                for (const char of characteristics) {
-                    if (char.properties.write || char.properties.writeWithoutResponse) {
-                        bluetoothCharacteristic = char;
-                        break;
+                try {
+                    const characteristics = await service.getCharacteristics();
+                    for (const char of characteristics) {
+                        if (char.properties.write || char.properties.writeWithoutResponse) {
+                            bluetoothCharacteristic = char;
+                            break;
+                        }
                     }
+                } catch (e) {
+                    console.warn("Servizio ignorato", e);
                 }
                 if (bluetoothCharacteristic) break;
             }
 
-            document.getElementById('statusBadge').innerText = `Connesso a: ${myPrinterDevice.name}`;
+            if (!bluetoothCharacteristic) {
+                throw new Error("Nessuna caratteristica di scrittura compatibile trovata.");
+            }
+
+            document.getElementById('statusBadge').innerText = `Connesso a: ${bluetoothDevice.name || 'Stampante'}`;
             document.getElementById('statusBadge').classList.add('connected');
-            addLog("Stampante pronta e configurata con successo!");
+            addLog("Stampante pronta e configurata!");
+
+            bluetoothDevice.addEventListener('gattserverdisconnected', () => {
+                addLog("AVVISO: Stampante Bluetooth disconnessa!");
+                document.getElementById('statusBadge').innerText = "Stampante disconnessa";
+                document.getElementById('statusBadge').classList.remove('connected');
+                bluetoothCharacteristic = null;
+            });
 
             processPendingJobs();
 
@@ -167,140 +195,43 @@
         }
     }
 
-    // 2. Lettura impostazioni dinamiche da Supabase
-    async function getDatiImpostazioni() {
-        const { data, error } = await supabaseClient.from('settings').select('*');
-        let config = {
-            nome_locale: "NAKAI TIKI BAR",
-            indirizzo_locale: "Via dei Tiki, 1 - Roma",
-            piva_locale: "P.IVA: 01234567890"
-        };
-        
-        if (data && !error) {
-            data.forEach(row => {
-                const k = row.key || row.chiave;
-                const v = row.value || row.valore;
-                
-                if (k === 'nome_locale' || k === 'nome') config.nome_locale = v;
-                if (k === 'indirizzo_locale' || k === 'indirizzo') config.indirizzo_locale = v;
-                if (k === 'piva_locale' || k === 'piva') config.piva_locale = v;
-            });
-        }
-        return config;
-    }
-
-    // 3. Funzione di stampa professionale e integrata con le impostazioni
+    // 2. Invio dati alla stampante
     async function sendToPrinter(payloadData) {
-        if (!myPrinterDevice || !myPrinterDevice.gatt.connected) {
+        if (!bluetoothDevice || !bluetoothDevice.gatt.connected || !bluetoothCharacteristic) {
             throw new Error("Stampante Bluetooth disconnessa.");
         }
 
-        const settings = await getDatiImpostazioni();
-        const tipoDoc = (payloadData.type || payloadData.tipo || 'comanda').toLowerCase();
-        
-        let textToPrint = "\x1B\x40";       
-        textToPrint += "\x1B\x61\x01";     
-        textToPrint += "\x1B\x45\x1";       
-
-        if (tipoDoc === 'conto' || tipoDoc === 'preconto') {
-            const nomeLocale = payloadData.nome_locale || settings.nome_locale;
-            const indirizzoLocale = payloadData.indirizzo_locale || settings.indirizzo_locale;
-            const pivaLocale = payloadData.piva_locale || settings.piva_locale;
-            const operatore = payloadData.operatore || payloadData.cameriere || "Sala";
-            const idOrdine = payloadData.id_ordine || payloadData.ordine_id || "N/D";
-            
-            textToPrint += "\x1D\x21\x01"; 
-            textToPrint += `${nomeLocale}\n`;
-            textToPrint += "\x1D\x21\x00"; 
-            textToPrint += `${indirizzoLocale}\n`;
-            textToPrint += `${pivaLocale}\n`;
-            textToPrint += "================================\n";
-            textToPrint += `*** DOCUMENTO NON FISCALE ***\n`;
-            textToPrint += `PRECONTO / CONTO TAVOLO\n`;
-            textToPrint += "================================\n";
-
-            const tavolo = payloadData.tavolo || payloadData.table || "N/D";
-            const coperti = payloadData.coperti ? `Coperti: ${payloadData.coperti}` : 'Coperti: 1';
-            
-            textToPrint += `TAVOLO: ${tavolo}  |  ${coperti}\n`;
-            textToPrint += `CONTO N: #${idOrdine}  |  OPERATORE: ${operatore}\n`;
-            textToPrint += `DATA: ${new Date().toLocaleDateString()} - ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n`;
-            textToPrint += "--------------------------------\n";
-            textToPrint += "ARTICOLI ORDINATI:\n";
-            textToPrint += "--------------------------------\n";
-
-            if (payloadData.items && Array.isArray(payloadData.items)) {
-                payloadData.items.forEach(item => {
-                    const qty = item.qty || 1;
-                    const name = item.name || item.nome || 'Articolo';
-                    const prezzo = item.prezzo || item.price;
-                    const nota = item.note || item.varianti ? ` (${item.note || item.varianti})` : '';
-                    
-                    textToPrint += `${qty} x ${name}${nota}\n`;
-                    if (prezzo) {
-                        textToPrint += `                         [ ${(qty * prezzo).toFixed(2)} EUR ]\n`;
-                    }
-                });
-            }
-
-            textToPrint += "================================\n";
-
-            const totale = payloadData.totale || payloadData.total;
-            if (totale) {
-                textToPrint += "\x1D\x21\x01"; 
-                textToPrint += `TOTALE: ${Number(totale).toFixed(2)} EUR\n`;
-                textToPrint += "\x1D\x21\x00"; 
-            }
-
-            textToPrint += "================================\n";
-            textToPrint += "Grazie per aver scelto il nostro locale!\n";
-            textToPrint += "Il personale vi augura una buona serata\n";
-            textToPrint += "Arrivederci a presto!\n\n\n";
-
+        let textToPrint = `\n--- ${payloadData.type || 'ORDINE'} ---\n`;
+        if (payloadData.items && Array.isArray(payloadData.items)) {
+            payloadData.items.forEach(item => {
+                textToPrint += `Qta: ${item.qty} | Articolo: ${item.name || 'Generico'}\n`;
+            });
         } else {
-            textToPrint += "\x1D\x21\x11"; 
-            const tavolo = payloadData.tavolo || payloadData.table || "N/D";
-            textToPrint += `TAVOLO: ${tavolo}\n`;
-            
-            textToPrint += "\x1D\x21\x00"; 
-            const operatore = payloadData.operatore || payloadData.cameriere || "Sala";
-            const idOrdine = payloadData.id_ordine || "N/D";
-            
-            textToPrint += `Comanda #${idOrdine} - Cameriere: ${operatore}\n`;
-            textToPrint += `Ora invio: ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}\n`;
-            textToPrint += "================================\n";
-
-            if (payloadData.items && Array.isArray(payloadData.items)) {
-                payloadData.items.forEach(item => {
-                    const qty = item.qty || 1;
-                    const name = item.name || item.nome || 'Generico';
-                    const nota = item.note || item.varianti ? `\n   NOTE: ${item.note || item.varianti}` : '';
-                    
-                    textToPrint += `\n>> ${qty} PZ - ${name.toUpperCase()}${nota} <<\n`;
-                });
-            }
-
-            textToPrint += "\n================================\n";
-            textToPrint += "[ FINE COMANDA ]\n\n\n";
+            textToPrint += JSON.stringify(payloadData) + "\n";
         }
-
-        textToPrint += "\x1B\x45\x0"; 
-        textToPrint += "\x1B\x69";     
+        textToPrint += "--------------------\n\n\n";
 
         const encoder = new TextEncoder();
         const data = encoder.encode(textToPrint);
 
-        if (bluetoothCharacteristic) {
-            await bluetoothCharacteristic.writeValue(data);
-        } else {
-            throw new Error("Caratteristica di scrittura Bluetooth non trovata.");
+        const CHUNK_SIZE = 512;
+        for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+            const chunk = data.slice(i, i + CHUNK_SIZE);
+            if (bluetoothCharacteristic.properties.writeWithoutResponse) {
+                await bluetoothCharacteristic.writeValueWithoutResponse(chunk);
+            } else {
+                await bluetoothCharacteristic.writeValue(chunk);
+            }
         }
     }
 
-    // 4. Elaborazione della coda
+    // 3. Elaborazione coda Supabase
     async function processPendingJobs() {
-        if (!myPrinterDevice || !myPrinterDevice.gatt.connected) {
-            addLog("Stampante offline. Impossibile elaborare la coda.");
+        if (!supabaseClient) {
+            addLog("Supabase non configurato.");
+            return;
+        }
+        if (!bluetoothDevice || !bluetoothDevice.gatt.connected) {
             return;
         }
 
@@ -331,40 +262,49 @@
                         .eq('id', job.id);
 
                     if (updateError) {
-                        addLog(`Errore aggiornamento stato ID ${job.id}: ${updateError.message}`);
+                        addLog(`Errore aggiornamento ID ${job.id}: ${updateError.message}`);
                         break; 
                     } else {
-                        addLog(`Ordine ID ${job.id} stampato e aggiornato con successo!`);
+                        addLog(`Ordine ID ${job.id} stampato con successo!`);
                     }
                 } catch (err) {
-                    addLog(`Errore di stampa su ID ${job.id}: ${err.message}. Interrompo la coda.`);
-                    break;
+                    addLog(`Errore di stampa su ID ${job.id}: ${err.message}`);
+                    break; 
                 }
             }
-        } else {
-            addLog("Nessun ordine in sospeso.");
         }
     }
 
-    // 5. Ascolto in tempo reale
-    supabaseClient
-        .channel('public:print_jobs')
-        .on('postgres_changes', { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'print_jobs' 
-        }, async (payload) => {
-            if (payload.new && payload.new.status === 'nuovo') {
-                addLog(`Nuovo ordine ricevuto in tempo reale! ID: ${payload.new.id}`);
-                await processPendingJobs();
-            }
-        })
-        .subscribe((status) => {
-            addLog(`Canale Realtime Supabase: ${status}`);
-        });
+    // 4. Realtime Supabase
+    if (supabaseClient) {
+        try {
+            supabaseClient
+                .channel('public:print_jobs')
+                .on('postgres_changes', { 
+                    event: 'INSERT', 
+                    schema: 'public', 
+                    table: 'print_jobs' 
+                }, async (payload) => {
+                    if (payload.new && payload.new.status === 'nuovo') {
+                        addLog(`Nuovo ordine in tempo reale! ID: ${payload.new.id}`);
+                        await processPendingJobs();
+                    }
+                })
+                .subscribe((status, err) => {
+                    if (err) {
+                        addLog(`Errore Realtime: ${err.message}`);
+                    } else {
+                        addLog(`Canale Realtime: ${status}`);
+                    }
+                });
+        } catch (e) {
+            addLog(`Impossibile attivare Realtime: ${e.message}`);
+        }
+    }
 
+    // Controllo periodico
     setInterval(() => {
-        if (myPrinterDevice && myPrinterDevice.gatt.connected) {
+        if (bluetoothDevice && bluetoothDevice.gatt.connected) {
             processPendingJobs();
         }
     }, 30000);
@@ -372,3 +312,4 @@
 
 </body>
 </html>
+

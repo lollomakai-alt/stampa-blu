@@ -1,90 +1,89 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lollo-Stamp Bridge</title>
-    <!-- Inclusione della libreria Supabase via CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        body {
-            background-color: #0a0e17;
-            color: #ffffff;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .container {
-            width: 100%;
-            max-width: 400px;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-            border-bottom: 1px solid #1F2937;
-            padding-bottom: 15px;
-        }
-        .headerTitle {
-            font-size: 22px;
-            font-weight: bold;
-            color: #39FF14;
-            letter-spacing: 2px;
-        }
-        .card {
-            background-color: #111827;
-            border: 1px solid #1F2937;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 15px;
-        }
-        .cardLabel {
-            font-size: 11px;
-            color: #9CA3AF;
-            margin-bottom: 10px;
-            letter-spacing: 1px;
-            font-weight: bold;
-        }
-        .actionButton {
-            background-color: #1E3A8A;
-            border: 1px solid #3B82F6;
-            color: #FFFFFF;
-            padding: 15px;
-            border-radius: 12px;
-            width: 100%;
-            font-weight: bold;
-            font-size: 14px;
-            cursor: pointer;
-            text-align: center;
-        }
-        .logBox {
-            background-color: #030712;
-            border: 1px solid #1F2937;
-            border-radius: 8px;
-            padding: 10px;
-            font-family: monospace;
-            font-size: 11px;
-            color: #39FF14;
-            height: 140px;
-            overflow-y: auto;
-        }
-        .status-badge {
-            text-align: center;
-            padding: 10px;
-            border-radius: 8px;
-            background: #030712;
-            border: 1px solid #FACC15;
-            color: #FACC15;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-        .connected {
-            border-color: #39FF14 !important;
-            color: #39FF14 !important;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lollo-Stamp Bridge</title>
+<!-- Inclusione della libreria Supabase via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+body {
+    background-color: #0a0e17;
+    color: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.container {
+    width: 100%;
+    max-width: 400px;
+}
+.header {
+    text-align: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #1F2937;
+    padding-bottom: 15px;
+}
+.headerTitle {
+    font-size: 22px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    color: #39FF14;
+}
+.card {
+    background-color: #111827;
+    border: 1px solid #1F2937;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 15px;
+}
+.cardLabel {
+    font-size: 11px;
+    color: #9CA3AF;
+    margin-bottom: 10px;
+    letter-spacing: 1px;
+    font-weight: bold;
+}
+.actionButton {
+    background-color: #1E3A8A;
+    border: 1px solid #3B82F6;
+    color: #FFFFFF;
+    padding: 15px;
+    border-radius: 12px;
+    width: 100%;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+}
+.logBox {
+    background-color: #030712;
+    border: 1px solid #1F2937;
+    border-radius: 8px;
+    padding: 10px;
+    font-family: monospace;
+    font-size: 11px;
+    color: #39FF14;
+    height: 140px;
+    overflow-y: auto;
+}
+.status-badge {
+    text-align: center;
+    padding: 10px;
+    border-radius: 8px;
+    background: #030712;
+    border: 1px solid #FACC15;
+    color: #FACC15;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+.connected {
+    border-color: #39FF14 !important;
+    color: #39FF14 !important;
+}
+</style>
 </head>
 <body>
 
@@ -93,13 +92,13 @@
         <div class="headerTitle">LOLLO-STAMP</div>
         <div style="font-size: 11px; color: #9CA3AF; margin-top: 4px;">CLOUD DIRECT BRIDGE</div>
     </div>
-
+    
     <div class="card">
         <div class="cardLabel">CONNESSIONE STAMPANTE BLUETOOTH</div>
         <div id="statusBadge" class="status-badge">In attesa di associazione Bluetooth...</div>
         <button class="actionButton" onclick="connettiStampante()">Associa Stampante Termica</button>
     </div>
-
+    
     <div class="card">
         <div class="cardLabel">CONSOLE LOG IN TEMPO REALE</div>
         <div id="logBox" class="logBox">[SYSTEM] Interfaccia avviata. Clicca su associa stampante.</div>
@@ -107,209 +106,370 @@
 </div>
 
 <script>
-    // --- CONFIGURAZIONE SUPABASE ---
-    const SUPABASE_URL = 'https://yyrawuynqukwszvotiuu.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b';
-    
-    let supabaseClient = null;
+// --- CONFIGURAZIONE SUPABASE
+const SUPABASE_URL = 'https://yyrawuynqukwszvotiuu.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b';
+
+let supabaseClient = null;
+try {
+    if (SUPABASE_URL && SUPABASE_KEY) {
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    }
+} catch (e) {
+    console.error("Errore inizializzazione Supabase:", e);
+}
+
+let bluetoothDevice = null;
+let bluetoothCharacteristic = null;
+
+function addLog(msg) {
+    const logBox = document.getElementById('logBox');
+    if (logBox) {
+        logBox.innerHTML += `<br>[${new Date().toLocaleTimeString()}] ${msg}`;
+        logBox.scrollTop = logBox.scrollHeight;
+    }
+}
+
+// 1. Connessione Bluetooth
+async function connettiStampante() {
+    if (!navigator.bluetooth) {
+        alert("Il Bluetooth non è supportato da questo browser. Usa Google Chrome.");
+        addLog("ERRORE: Bluetooth Web API non supportata.");
+        return;
+    }
+
     try {
-        if (SUPABASE_URL && SUPABASE_KEY) {
-            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        }
-    } catch (e) {
-        console.error("Errore inizializzazione Supabase:", e);
-    }
+        addLog("Apertura ricerca dispositivi Bluetooth...");
+        bluetoothDevice = await navigator.bluetooth.requestDevice({
+            acceptAllDevices: true,
+            optionalServices: [
+                '000018f0-0000-1000-8000-00805f9b34fb',
+                '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+                'e7810a71-73ae-499d-8c15-faa9aef0c3f2'
+            ]
+        });
 
-    let bluetoothDevice = null;
-    let bluetoothCharacteristic = null;
+        addLog(`Dispositivo selezionato: ${bluetoothDevice.name || 'Sconosciuto'}`);
 
-    function addLog(msg) {
-        const logBox = document.getElementById('logBox');
-        if (logBox) {
-            logBox.innerHTML += `<br>[${new Date().toLocaleTimeString()}] ${msg}`;
-            logBox.scrollTop = logBox.scrollHeight;
-        }
-    }
+        const server = await bluetoothDevice.gatt.connect();
+        addLog("Connessione GATT stabilita. Ricerca servizi in corso...");
 
-    // 1. Connessione Bluetooth
-    async function connettiStampante() {
-        if (!navigator.bluetooth) {
-            alert("Il Bluetooth non è supportato da questo browser. Usa Google Chrome.");
-            addLog("ERRORE: Bluetooth Web API non supportata.");
-            return;
-        }
-
-        try {
-            addLog("Apertura ricerca dispositivi Bluetooth...");
-            
-            bluetoothDevice = await navigator.bluetooth.requestDevice({
-                acceptAllDevices: true,
-                optionalServices: [
-                    '000018f0-0000-1000-8000-00805f9b34fb',
-                    '49535343-fe7d-4ae5-8fa9-9fafd205e455',
-                    'e7810a71-73ae-499d-8c15-faa9aef0c3f2'
-                ]
-            });
-
-            addLog(`Dispositivo selezionato: ${bluetoothDevice.name || 'Sconosciuto'}`);
-            
-            const server = await bluetoothDevice.gatt.connect();
-            addLog("Connessione GATT stabilita. Ricerca servizi in corso...");
-
-            const services = await server.getPrimaryServices();
-            for (const service of services) {
-                try {
-                    const characteristics = await service.getCharacteristics();
-                    for (const char of characteristics) {
-                        if (char.properties.write || char.properties.writeWithoutResponse) {
-                            bluetoothCharacteristic = char;
-                            break;
-                        }
+        const services = await server.getPrimaryServices();
+        for (const service of services) {
+            try {
+                const characteristics = await service.getCharacteristics();
+                for (const char of characteristics) {
+                    if (char.properties.write || char.properties.writeWithoutResponse) {
+                        bluetoothCharacteristic = char;
+                        break;
                     }
-                } catch (e) {
-                    console.warn("Servizio ignorato", e);
                 }
-                if (bluetoothCharacteristic) break;
+            } catch (e) {
+                console.warn("Servizio ignorato", e);
             }
-
-            if (!bluetoothCharacteristic) {
-                throw new Error("Nessuna caratteristica di scrittura compatibile trovata.");
-            }
-
-            document.getElementById('statusBadge').innerText = `Connesso a: ${bluetoothDevice.name || 'Stampante'}`;
-            document.getElementById('statusBadge').classList.add('connected');
-            addLog("Stampante pronta e configurata!");
-
-            bluetoothDevice.addEventListener('gattserverdisconnected', () => {
-                addLog("AVVISO: Stampante Bluetooth disconnessa!");
-                document.getElementById('statusBadge').innerText = "Stampante disconnessa";
-                document.getElementById('statusBadge').classList.remove('connected');
-                bluetoothCharacteristic = null;
-            });
-
-            processPendingJobs();
-
-        } catch (error) {
-            console.error(error);
-            addLog(`Errore/Annullato: ${error.message}`);
+            if (bluetoothCharacteristic) break;
         }
+
+        if (!bluetoothCharacteristic) {
+            throw new Error("Nessuna caratteristica di scrittura compatibile trovata.");
+        }
+
+        document.getElementById('statusBadge').innerText = `Connesso a: ${bluetoothDevice.name || 'Stampante'}`;
+        document.getElementById('statusBadge').classList.add('connected');
+        addLog("Stampante pronta e configurata!");
+
+        bluetoothDevice.addEventListener('gattserverdisconnected', () => {
+            addLog("AVVISO: Stampante Bluetooth disconnessa!");
+            document.getElementById('statusBadge').innerText = "Stampante disconnessa";
+            document.getElementById('statusBadge').classList.remove('connected');
+            bluetoothCharacteristic = null;
+        });
+
+        processPendingJobs();
+
+    } catch (error) {
+        console.error(error);
+        addLog(`Errore/Annullato: ${error.message}`);
+    }
+}
+
+// 2. Invio dati alla stampante ottimizzato per 80mm
+async function sendToPrinter(payloadData) {
+    if (!bluetoothDevice || !bluetoothDevice.gatt.connected || !bluetoothCharacteristic) {
+        throw new Error("Stampante Bluetooth disconnessa.");
     }
 
-    // 2. Invio dati alla stampante
-    async function sendToPrinter(payloadData) {
-        if (!bluetoothDevice || !bluetoothDevice.gatt.connected || !bluetoothCharacteristic) {
-            throw new Error("Stampante Bluetooth disconnessa.");
+    const ESC = '\x1B';
+    const GS = '\x1D';
+    const INIT = ESC + '@';
+    const ALIGN_CENTER = ESC + 'a' + '\x01';
+    const ALIGN_LEFT = ESC + 'a' + '\x00';
+    const FONT_NORMAL = GS + '!' + '\x00'; 
+    const FONT_DOUBLE_W = GS + '!' + '\x10'; 
+    const FONT_LARGE = GS + '!' + '\x11';    
+    const BOLD_ON = ESC + 'E' + '\x01';
+    const BOLD_OFF = ESC + 'E' + '\x00';
+    const CUT = '\n\n\x1D\x56\x41\x03';
+
+    let rawCommand = INIT;
+
+    // --- LAYOUT PRECONTO PROFESSIONALE (80MM) ---
+    if (payloadData.type === 'PRECONTO') {
+        let restName = "RICEVUTA RISTORANTE";
+        let restAddress = "";
+        let restPhone = "";
+        let restSaluti = "GRAZIE E ARRIVEDERCI!";
+        let restQr = "";
+
+        if (supabaseClient) {
+            try {
+                // Legge le impostazioni basate sulla struttura chiave-valore di Supabase
+                const { data: settingsData } = await supabaseClient
+                    .from('settings')
+                    .select('*');
+                
+                if (settingsData && Array.isArray(settingsData)) {
+                    settingsData.forEach(row => {
+                        if (row.key === 'nome_locale') restName = row.value || restName;
+                        if (row.key === 'indirizzo_locale') restAddress = row.value || "";
+                        if (row.key === 'phone') restPhone = row.value ? `TEL. ${row.value}` : "";
+                        if (row.key === 'saluti') restSaluti = row.value || restSaluti;
+                        if (row.key === 'qr_code') restQr = row.value || "";
+                    });
+                }
+            } catch (err) {
+                console.warn("Impossibile leggere settings da Supabase", err);
+            }
         }
 
-        let textToPrint = `\n--- ${payloadData.type || 'ORDINE'} ---\n`;
+        rawCommand += ALIGN_CENTER + FONT_DOUBLE_W + BOLD_ON;
+        rawCommand += `${restName.toUpperCase()}\n`;
+        rawCommand += FONT_NORMAL + BOLD_OFF;
+        if (restAddress) rawCommand += `${restAddress}\n`;
+        if (restPhone) rawCommand += `${restPhone}\n`;
+        rawCommand += `==========================================\n`;
+        rawCommand += `               NON FISCALE\n`;
+        rawCommand += FONT_DOUBLE_W + BOLD_ON + `PRECONTO - ${payloadData.table || 'Tavolo'}\n` + FONT_NORMAL + BOLD_OFF;
+        rawCommand += `       RITIRARE SCONTRINO ALLA CASSA\n`;
+        rawCommand += `==========================================\n`;
+        rawCommand += `                                      EURO\n`;
+
+        let subTotale = 0;
+
+        // 1. Stampa Articoli
         if (payloadData.items && Array.isArray(payloadData.items)) {
             payloadData.items.forEach(item => {
-                textToPrint += `Qta: ${item.qty} | Articolo: ${item.name || 'Generico'}\n`;
+                const qta = item.qty || 1;
+                const prezzo = item.price || 0;
+                const totRiga = qta * prezzo;
+                subTotale += totRiga;
+
+                const prezzoStr = totRiga.toFixed(2).replace('.', ',');
+                const nomeArticolo = (item.name || 'Articolo').toUpperCase();
+                
+                rawCommand += ALIGN_LEFT + BOLD_ON + `${qta} X ${prezzo.toFixed(2).replace('.', ',')}\n` + BOLD_OFF;
+                const spazi = Math.max(1, 42 - nomeArticolo.length - prezzoStr.length);
+                rawCommand += FONT_DOUBLE_W + `${nomeArticolo}` + FONT_NORMAL + `${' '.repeat(spazi)}${prezzoStr}\n`;
+            });
+        }
+
+        // 2. Gestione Coperti
+        const numCoperti = payloadData.seats !== undefined ? parseInt(payloadData.seats) : 0;
+        const prezzoCoperto = payloadData.cover_price !== undefined ? parseFloat(payloadData.cover_price) : 0;
+        
+        if (numCoperti > 0 && prezzoCoperto > 0) {
+            const totCoperti = numCoperti * prezzoCoperto;
+            subTotale += totCoperti;
+            const copertoStr = totCoperti.toFixed(2).replace('.', ',');
+            const nomeCoperto = `COPERTO x ${numCoperti}`;
+            const spaziC = Math.max(1, 42 - nomeCoperto.length - copertoStr.length);
+            rawCommand += `------------------------------------------\n`;
+            rawCommand += FONT_DOUBLE_W + `${nomeCoperto}` + FONT_NORMAL + `${' '.repeat(spaziC)}${copertoStr}\n`;
+        }
+
+        // 3. Gestione Sconti
+        let importoScaricato = 0;
+        if (payloadData.discount_amount && payloadData.discount_amount > 0) {
+            importoScaricato = parseFloat(payloadData.discount_amount);
+        } else if (payloadData.discount_percent && payloadData.discount_percent > 0) {
+            importoScaricato = subTotale * (parseFloat(payloadData.discount_percent) / 100);
+        }
+
+        if (importoScaricato > 0) {
+            subTotale -= importoScaricato;
+            const scontoStr = `-${importoScaricato.toFixed(2).replace('.', ',')}`;
+            const labelSconto = payloadData.discount_label ? payloadData.discount_label.toUpperCase() : "SCONTO APPLICATO";
+            const spaziS = Math.max(1, 42 - labelSconto.length - scontoStr.length);
+            rawCommand += `------------------------------------------\n`;
+            rawCommand += BOLD_ON + `${labelSconto}${' '.repeat(spaziS)}${scontoStr}\n` + BOLD_OFF;
+        }
+
+        const totaleStr = subTotale.toFixed(2).replace('.', ',');
+        rawCommand += `------------------------------------------\n`;
+        rawCommand += FONT_DOUBLE_W + BOLD_ON + `TOTALE: ${totaleStr} EURO\n` + FONT_NORMAL + BOLD_OFF;
+        
+        // 4. Divisione automatica del conto per coperti
+        if (numCoperti > 1) {
+            const quotaCadauno = (subTotale / numCoperti).toFixed(2).replace('.', ',');
+            rawCommand += `------------------------------------------\n`;
+            rawCommand += ALIGN_CENTER + BOLD_ON + `Ripartizione per ${numCoperti} coperti:\n`;
+            rawCommand += `Circa ${quotaCadauno} EURO a persona\n` + BOLD_OFF;
+        }
+
+        rawCommand += `==========================================\n`;
+        
+        // 5. Messaggio di cortesia / Saluti e Link Recensioni (QR)
+        const now = new Date();
+        rawCommand += ALIGN_CENTER + BOLD_ON;
+        rawCommand += `${restSaluti.toUpperCase()}\n`;
+        rawCommand += BOLD_OFF;
+        
+        if (restQr) {
+            rawCommand += `Lascia una recensione:\n${restQr}\n`;
+        }
+
+        rawCommand += `------------------------------------------\n`;
+        rawCommand += ALIGN_LEFT;
+        rawCommand += `CASSA: 01                             ${now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}\n`;
+        rawCommand += `${now.toLocaleDateString('it-IT')}\n`;
+        rawCommand += `               NON FISCALE\n`;
+        rawCommand += CUT;
+
+    } else {
+        // --- LAYOUT COMANDA (Cucina / Bar) - EXTRA LARGE 80MM ---
+        const tipoComanda = (payloadData.type || 'COMANDA').toUpperCase();
+        const nomeTavolo = payloadData.table || 'Tavolo';
+        const numCoperti = payloadData.seats !== undefined ? payloadData.seats : '-';
+        const now = new Date();
+
+        rawCommand += ALIGN_CENTER + FONT_LARGE + BOLD_ON;
+        rawCommand += `*** ${tipoComanda} ***\n`;
+        rawCommand += FONT_DOUBLE_W + `TAVOLO: ${nomeTavolo}\n`;
+        rawCommand += FONT_NORMAL + BOLD_OFF;
+        rawCommand += `------------------------------------------\n`;
+        rawCommand += FONT_DOUBLE_W + BOLD_ON + `COPERTI: ${numCoperti}  |  ${now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}\n` + FONT_NORMAL + BOLD_OFF;
+        rawCommand += `==========================================\n\n`;
+
+        rawCommand += ALIGN_LEFT;
+        if (payloadData.items && Array.isArray(payloadData.items)) {
+            payloadData.items.forEach(item => {
+                const qta = item.qty || 1;
+                const nomeArticolo = (item.name || 'Articolo').toUpperCase();
+                
+                rawCommand += FONT_LARGE + BOLD_ON;
+                rawCommand += `> ${qta} PZ - ${nomeArticolo}\n`;
+                rawCommand += FONT_NORMAL + BOLD_OFF;
+
+                if (item.notes) {
+                    rawCommand += FONT_DOUBLE_W + `   NOTE: ${item.notes.toUpperCase()}\n` + FONT_NORMAL;
+                }
+                rawCommand += `------------------------------------------\n`;
             });
         } else {
-            textToPrint += JSON.stringify(payloadData) + "\n";
+            rawCommand += FONT_NORMAL + JSON.stringify(payloadData) + "\n";
         }
-        textToPrint += "--------------------\n\n\n";
 
-        const encoder = new TextEncoder();
-        const data = encoder.encode(textToPrint);
-
-        const CHUNK_SIZE = 512;
-        for (let i = 0; i < data.length; i += CHUNK_SIZE) {
-            const chunk = data.slice(i, i + CHUNK_SIZE);
-            if (bluetoothCharacteristic.properties.writeWithoutResponse) {
-                await bluetoothCharacteristic.writeValueWithoutResponse(chunk);
-            } else {
-                await bluetoothCharacteristic.writeValue(chunk);
-            }
-        }
+        rawCommand += `\n==========================================\n`;
+        rawCommand += CUT;
     }
 
-    // 3. Elaborazione coda Supabase
-    async function processPendingJobs() {
-        if (!supabaseClient) {
-            addLog("Supabase non configurato.");
-            return;
+    const encoder = new TextEncoder();
+    const data = encoder.encode(rawCommand);
+
+    const CHUNK_SIZE = 512;
+    for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+        const chunk = data.slice(i, i + CHUNK_SIZE);
+        if (bluetoothCharacteristic.properties.writeWithoutResponse) {
+            await bluetoothCharacteristic.writeValueWithoutResponse(chunk);
+        } else {
+            await bluetoothCharacteristic.writeValue(chunk);
         }
-        if (!bluetoothDevice || !bluetoothDevice.gatt.connected) {
-            return;
-        }
+    }
+}
 
-        addLog("Controllo ordini in coda su Supabase...");
+// 3. Elaborazione coda Supabase
+async function processPendingJobs() {
+    if (!supabaseClient) {
+        addLog("Supabase non configurato.");
+        return;
+    }
+    if (!bluetoothDevice || !bluetoothDevice.gatt.connected) {
+        return;
+    }
 
-        const { data: pendingJobs, error } = await supabaseClient
-            .from('print_jobs')
-            .select('*')
-            .eq('status', 'nuovo')
-            .order('id', { ascending: true });
+    addLog("Controllo ordini in coda su Supabase...");
+    const { data: pendingJobs, error } = await supabaseClient
+        .from('print_jobs')
+        .select('*')
+        .eq('status', 'nuovo')
+        .order('id', { ascending: true });
 
-        if (error) {
-            addLog(`Errore lettura DB: ${error.message}`);
-            return;
-        }
+    if (error) {
+        addLog(`Errore lettura DB: ${error.message}`);
+        return;
+    }
 
-        if (pendingJobs && pendingJobs.length > 0) {
-            addLog(`Trovati ${pendingJobs.length} ordini da stampare.`);
-            
-            for (const job of pendingJobs) {
-                try {
-                    addLog(`Invio in stampa ordine ID: ${job.id}...`);
-                    await sendToPrinter(job.payload);
+    if (pendingJobs && pendingJobs.length > 0) {
+        addLog(`Trovati ${pendingJobs.length} ordini da stampare.`);
 
-                    const { error: updateError } = await supabaseClient
-                        .from('print_jobs')
-                        .update({ status: 'stampato' })
-                        .eq('id', job.id);
+        for (const job of pendingJobs) {
+            try {
+                addLog(`Invio in stampa ordine ID: ${job.id}...`);
+                await sendToPrinter(job.payload);
 
-                    if (updateError) {
-                        addLog(`Errore aggiornamento ID ${job.id}: ${updateError.message}`);
-                        break; 
-                    } else {
-                        addLog(`Ordine ID ${job.id} stampato con successo!`);
-                    }
-                } catch (err) {
-                    addLog(`Errore di stampa su ID ${job.id}: ${err.message}`);
-                    break; 
+                const { error: updateError } = await supabaseClient
+                    .from('print_jobs')
+                    .update({ status: 'stampato' })
+                    .eq('id', job.id);
+
+                if (updateError) {
+                    addLog(`Errore aggiornamento ID ${job.id}: ${updateError.message}`);
+                    break;
+                } else {
+                    addLog(`Ordine ID ${job.id} stampato con successo!`);
                 }
+            } catch (err) {
+                addLog(`Errore di stampa su ID ${job.id}: ${err.message}`);
+                break;
             }
         }
     }
+}
 
-    // 4. Realtime Supabase
-    if (supabaseClient) {
-        try {
-            supabaseClient
-                .channel('public:print_jobs')
-                .on('postgres_changes', { 
-                    event: 'INSERT', 
-                    schema: 'public', 
-                    table: 'print_jobs' 
-                }, async (payload) => {
-                    if (payload.new && payload.new.status === 'nuovo') {
-                        addLog(`Nuovo ordine in tempo reale! ID: ${payload.new.id}`);
-                        await processPendingJobs();
-                    }
-                })
-                .subscribe((status, err) => {
-                    if (err) {
-                        addLog(`Errore Realtime: ${err.message}`);
-                    } else {
-                        addLog(`Canale Realtime: ${status}`);
-                    }
-                });
-        } catch (e) {
-            addLog(`Impossibile attivare Realtime: ${e.message}`);
-        }
+// 4. Realtime Supabase
+if (supabaseClient) {
+    try {
+        supabaseClient
+            .channel('public:print_jobs')
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'print_jobs'
+            }, async (payload) => {
+                if (payload.new && payload.new.status === 'nuovo') {
+                    addLog(`Nuovo ordine in tempo reale! ID: ${payload.new.id}`);
+                    await processPendingJobs();
+                }
+            })
+            .subscribe((status, err) => {
+                if (err) {
+                    addLog(`Errore Realtime: ${err.message}`);
+                } else {
+                    addLog(`Canale Realtime: ${status}`);
+                }
+            });
+    } catch (e) {
+        addLog(`Impossibile attivare Realtime: ${e.message}`);
     }
+}
 
-    // Controllo periodico
-    setInterval(() => {
-        if (bluetoothDevice && bluetoothDevice.gatt.connected) {
-            processPendingJobs();
-        }
-    }, 30000);
+// Controllo periodico
+setInterval(() => {
+    if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+        processPendingJobs();
+    }
+}, 30000);
 </script>
 
 </body>
 </html>
-

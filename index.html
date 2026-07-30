@@ -30,8 +30,8 @@ body {
 .headerTitle {
     font-size: 22px;
     font-weight: bold;
-    letter-spacing: 2px;
     color: #39FF14;
+    letter-spacing: 2px;
 }
 .card {
     background-color: #111827;
@@ -57,6 +57,7 @@ body {
     font-weight: bold;
     font-size: 14px;
     cursor: pointer;
+    text-align: center;
 }
 .logBox {
     background-color: #030712;
@@ -106,7 +107,7 @@ body {
 </div>
 
 <script>
-// --- CONFIGURAZIONE SUPABASE
+// --- CONFIGURAZIONE SUPABASE ---
 const SUPABASE_URL = 'https://yyrawuynqukwszvotiuu.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b';
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -183,7 +184,7 @@ async function getDatiImpostazioni() {
     const { data, error } = await supabaseClient.from('settings').select('*');
     let config = {
         nome_locale: "NAKAI TIKI BAR",
-        indirizzo_locale: "Via dei Tiki, 1 Roma",
+        indirizzo_locale: "Via dei Tiki, 1 - Roma",
         piva_locale: "P.IVA: 01234567890"
     };
 
@@ -211,7 +212,7 @@ async function sendToPrinter(payloadData) {
     const INIT = ESC + '@';
     const ALIGN_CENTER = ESC + 'a' + '\x01';
     const ALIGN_LEFT = ESC + 'a' + '\x00';
-    const CUT = '\n\n\x1D\x56\x41\x03'; // Comando standard per il taglio carta
+    const CUT = '\n\n\x1D\x56\x41\x03'; // Comando standard di taglio carta
 
     let textToPrint = INIT;
     const settings = await getDatiImpostazioni();
@@ -228,19 +229,19 @@ async function sendToPrinter(payloadData) {
         textToPrint += GS + '!' + '\x01' + `${nomeLocale}\n` + GS + '!' + '\x00';
         textToPrint += `${indirizzoLocale}\n`;
         textToPrint += `${pivaLocale}\n`;
-        textToPrint += `==========================================\n`;
-        textToPrint += `       *** DOCUMENTO NON FISCALE ***\n`;
-        textToPrint += `          PRECONTO / CONTO TAVOLO\n`;
-        textToPrint += `==========================================\n`;
+        textToPrint += `================================\n`;
+        textToPrint += `*** DOCUMENTO NON FISCALE ***\n`;
+        textToPrint += `PRECONTO / CONTO TAVOLO\n`;
+        textToPrint += `================================\n`;
 
         const tavolo = payloadData.tavolo || payloadData.table || "N/D";
         const coperti = payloadData.coperti ? `Coperti: ${payloadData.coperti}` : 'Coperti: 1';
-        textToPrint += ALIGN_LEFT + `TAVOLO: ${tavolo}  ${coperti}\n`;
+        textToPrint += ALIGN_LEFT + `TAVOLO: ${tavolo} | ${coperti}\n`;
         textToPrint += `CONTO N: #${idOrdine} | OPERATORE: ${operatore}\n`;
-        textToPrint += `DATA: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n`;
-        textToPrint += `------------------------------------------\n`;
+        textToPrint += `DATA: ${new Date().toLocaleDateString()} - ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n`;
+        textToPrint += `--------------------------------\n`;
         textToPrint += `ARTICOLI ORDINATI:\n`;
-        textToPrint += `------------------------------------------\n`;
+        textToPrint += `--------------------------------\n`;
 
         if (payloadData.items && Array.isArray(payloadData.items)) {
             payloadData.items.forEach(item => {
@@ -251,60 +252,87 @@ async function sendToPrinter(payloadData) {
 
                 textToPrint += `${qty} x ${name}${nota}\n`;
                 if (prezzo) {
-                    textToPrint += `                         [ ${(qty * prezzo).toFixed(2)} EUR ]\n`;
+                    textToPrint += `               [ ${(qty * prezzo).toFixed(2)} EUR ]\n`;
                 }
             });
         }
 
-        textToPrint += `==========================================\n`;
+        textToPrint += `================================\n`;
         const totale = payloadData.totale || payloadData.total;
         if (totale) {
             textToPrint += ALIGN_CENTER + GS + '!' + '\x01';
-            textToprint += `TOTALE: ${Number(totale).toFixed(2)} EUR\n`;
+            textToPrint += `TOTALE: ${Number(totale).toFixed(2)} EUR\n`;
             textToPrint += GS + '!' + '\x00';
         }
 
-        textToPrint += `==========================================\n`;
+        textToPrint += `================================\n`;
         textToPrint += `Grazie per aver scelto il nostro locale!\n`;
         textToPrint += `Il personale vi augura una buona serata\n`;
         textToPrint += `Arrivederci a presto!\n`;
         textToPrint += CUT;
 
     } else {
-        // --- COMANDA CUCINA / BAR ---
+        // --- COMANDA CUCINA / BAR (Gestione Paginazione e Centratura) ---
         const tipoComanda = (payloadData.type || 'COMANDA').toUpperCase();
         const nomeTavolo = payloadData.table || payloadData.tavolo || 'Tavolo';
         const numCoperti = payloadData.coperti || payloadData.seats || '-';
         const now = new Date();
 
-        textToPrint += ALIGN_CENTER + GS + '!' + '\x11'; // Carattere grande
-        textToPrint += `*** ${tipoComanda} ***\n\n`;
-        textToPrint += `TAVOLO: ${nomeTavolo}\n`;
-        textToPrint += GS + '!' + '\x00'; // Ritorno a normale
-        textToPrint += `------------------------------------------\n`;
-        textToPrint += `COPERTI: ${numCoperti} | Ore: ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n`;
-        textToPrint += `==========================================\n\n`;
+        const generaPaginaComanda = (articoliSlice, numeroPagina, totalePagine) => {
+            let paginaStr = ALIGN_CENTER + GS + '!' + '\x11';
+            paginaStr += `*** ${tipoComanda} ***\n`;
+            if (totalePagine > 1) {
+                paginaStr += GS + '!' + '\x00' + `(Pag. ${numeroPagina} di ${totalePagine})\n`;
+                paginaStr += GS + '!' + '\x11';
+            }
+            paginaStr += `\nTAVOLO: ${nomeTavolo}\n`;
+            paginaStr += GS + '!' + '\x00';
+            paginaStr += `--------------------------------\n`;
+            paginaStr += `COPERTI: ${numCoperti} | ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n`;
+            paginaStr += `================================\n\n`;
 
-        textToPrint += ALIGN_LEFT;
-        if (payloadData.items && Array.isArray(payloadData.items)) {
-            payloadData.items.forEach(item => {
+            articoliSlice.forEach(item => {
                 const qty = item.qty || 1;
-                const name = item.name || item.nome || 'Generico';
-                const nota = item.note || item.varianti ? `\n   NOTE: ${item.note || item.varianti}` : '';
-                
-                textToPrint += GS + '!' + '\x01' + `> ${qty} PZ - ${name.toUpperCase()}` + GS + '!' + '\x00' + `${nota}\n`;
-                textToPrint += `------------------------------------------\n`;
-            });
-        }
+                const name = (item.name || item.nome || 'Generico').toUpperCase();
+                const nota = item.note || item.varianti ? `\nNOTE: ${item.note || item.varianti}` : '';
 
-        textToPrint += ALIGN_CENTER;
-        textToPrint += `\n[ FINE COMANDA ]\n`;
-        textToPrint += CUT;
+                paginaStr += ALIGN_CENTER + GS + '!' + '\x01';
+                paginaStr += `>> ${qty} PZ - ${name} <<\n`;
+                if (nota) {
+                    paginaStr += `${nota}\n`;
+                }
+                paginaStr += GS + '!' + '\x00';
+                paginaStr += `--------------------------------\n`;
+            });
+
+            paginaStr += `\n[ FINE COMANDA ]\n`;
+            paginaStr += CUT;
+            return paginaStr;
+        };
+
+        if (payloadData.items && Array.isArray(payloadData.items) && payloadData.items.length > 0) {
+            const CHUNK_LIMIT = 5; // Massimo 5 articoli per pagina per evitare tagli
+            const items = payloadData.items;
+            const totalePagine = Math.ceil(items.length / CHUNK_LIMIT);
+
+            for (let p = 0; p < totalePagine; p++) {
+                const sliceArticoli = items.slice(p * CHUNK_LIMIT, (p + 1) * CHUNK_LIMIT);
+                textToPrint += generaPaginaComanda(sliceArticoli, p + 1, totalePagine);
+            }
+        } else {
+            textToPrint += ALIGN_CENTER + GS + '!' + '\x11';
+            textToPrint += `*** ${tipoComanda} ***\n\nTAVOLO: ${nomeTavolo}\n`;
+            textToPrint += GS + '!' + '\x00';
+            textToPrint += `--------------------------------\n`;
+            textToPrint += `Nessun articolo specificato\n`;
+            textToPrint += `================================\n`;
+            textToPrint += CUT;
+        }
     }
 
     const encoder = new TextEncoder();
     const data = encoder.encode(textToPrint);
-    
+
     const CHUNK_SIZE = 512;
     for (let i = 0; i < data.length; i += CHUNK_SIZE) {
         const chunk = data.slice(i, i + CHUNK_SIZE);

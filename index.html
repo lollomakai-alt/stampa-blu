@@ -7,7 +7,7 @@
 <!-- Inclusione della libreria Supabase via CDN -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  body {
+body {
     background-color: #0a0e17;
     color: #ffffff;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -16,38 +16,38 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-  }
-  .container {
+}
+.container {
     width: 100%;
     max-width: 400px;
-  }
-  .header {
+}
+.header {
     text-align: center;
     margin-bottom: 20px;
     border-bottom: 1px solid #1F2937;
     padding-bottom: 15px;
-  }
-  .headerTitle {
+}
+.headerTitle {
     font-size: 22px;
     font-weight: bold;
-    color: #39FF14;
     letter-spacing: 2px;
-  }
-  .card {
+    color: #39FF14;
+}
+.card {
     background-color: #111827;
     border: 1px solid #1F2937;
     border-radius: 12px;
     padding: 16px;
     margin-bottom: 15px;
-  }
-  .cardLabel {
+}
+.cardLabel {
     font-size: 11px;
     color: #9CA3AF;
     margin-bottom: 10px;
     letter-spacing: 1px;
     font-weight: bold;
-  }
-  .actionButton {
+}
+.actionButton {
     background-color: #1E3A8A;
     border: 1px solid #3B82F6;
     color: #FFFFFF;
@@ -57,9 +57,8 @@
     font-weight: bold;
     font-size: 14px;
     cursor: pointer;
-  }
-  .logBox {
-    text-align: center;
+}
+.logBox {
     background-color: #030712;
     border: 1px solid #1F2937;
     border-radius: 8px;
@@ -69,8 +68,8 @@
     color: #39FF14;
     height: 140px;
     overflow-y: auto;
-  }
-  .status-badge {
+}
+.status-badge {
     text-align: center;
     padding: 10px;
     border-radius: 8px;
@@ -79,306 +78,396 @@
     color: #FACC15;
     font-weight: bold;
     margin-bottom: 10px;
-  }
-  .connected {
+}
+.connected {
     border-color: #39FF14 !important;
     color: #39FF14 !important;
-  }
+}
 </style>
 </head>
 <body>
 
 <div class="container">
-  <div class="header">
-    <div class="headerTitle">LOLLO-STAMP</div>
-    <div style="font-size: 11px; color: #9CA3AF; margin-top: 4px;">CLOUD DIRECT BRIDGE</div>
-  </div>
-
-  <div class="card">
-    <div class="cardLabel">CONNESSIONE STAMPANTE BLUETOOTH</div>
-    <div id="statusBadge" class="status-badge">In attesa di associazione Bluetooth...</div>
-    <button class="actionButton" onclick="connettiStampante()">Associa Stampante Termica</button>
-  </div>
-
-  <div class="card">
-    <div class="cardLabel">CONSOLE LOG IN TEMPO REALE</div>
-    <div id="logBox" class="logBox">[SYSTEM] Interfaccia avviata. Clicca su associa stampante.</div>
-  </div>
+    <div class="header">
+        <div class="headerTitle">LOLLO-STAMP</div>
+        <div style="font-size: 11px; color: #9CA3AF; margin-top: 4px;">CLOUD DIRECT BRIDGE</div>
+    </div>
+    
+    <div class="card">
+        <div class="cardLabel">CONNESSIONE STAMPANTE BLUETOOTH</div>
+        <div id="statusBadge" class="status-badge">In attesa di associazione Bluetooth...</div>
+        <button class="actionButton" onclick="connettiStampante()">Associa Stampante Termica</button>
+    </div>
+    
+    <div class="card">
+        <div class="cardLabel">CONSOLE LOG IN TEMPO REALE</div>
+        <div id="logBox" class="logBox">[SYSTEM] Interfaccia avviata. Clicca su associa stampante.</div>
+    </div>
 </div>
 
 <script>
-let myPrinterDevice = null;
-let bluetoothCharacteristic = null;
-
 // --- CONFIGURAZIONE SUPABASE
 const SUPABASE_URL = 'https://yyrawuynqukwszvotiuu.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b';
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let supabaseClient = null;
+try {
+    if (SUPABASE_URL && SUPABASE_KEY) {
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    }
+} catch (e) {
+    console.error("Errore inizializzazione Supabase:", e);
+}
+
+let bluetoothDevice = null;
+let bluetoothCharacteristic = null;
 
 function addLog(msg) {
-  const logBox = document.getElementById('logBox');
-  logBox.innerHTML += `<br>[${new Date().toLocaleTimeString()}] ${msg}`;
-  logBox.scrollTop = logBox.scrollHeight;
+    const logBox = document.getElementById('logBox');
+    if (logBox) {
+        logBox.innerHTML += `<br>[${new Date().toLocaleTimeString()}] ${msg}`;
+        logBox.scrollTop = logBox.scrollHeight;
+    }
 }
 
 // 1. Connessione Bluetooth
 async function connettiStampante() {
-  if (!navigator.bluetooth) {
-    alert("Il Bluetooth non è supportato da questo browser. Usa Google Chrome su Android o Desktop.");
-    addLog("ERRORE: Bluetooth Web API non supportata.");
-    return;
-  }
-
-  try {
-    addLog("Apertura ricerca dispositivi Bluetooth...");
-    myPrinterDevice = await navigator.bluetooth.requestDevice({
-      acceptAllDevices: true,
-      optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
-    });
-
-    addLog(`Dispositivo selezionato: ${myPrinterDevice.name}`);
-    const server = await myPrinterDevice.gatt.connect();
-    addLog("Connessione GATT stabilita. Cerco il servizio di stampa...");
-
-    const services = await server.getPrimaryServices();
-    for (const service of services) {
-      const characteristics = await service.getCharacteristics();
-      for (const char of characteristics) {
-        if (char.properties.write || char.properties.writeWithoutResponse) {
-          bluetoothCharacteristic = char;
-          break;
-        }
-      }
-      if (bluetoothCharacteristic) break;
+    if (!navigator.bluetooth) {
+        alert("Il Bluetooth non è supportato da questo browser. Usa Google Chrome.");
+        addLog("ERRORE: Bluetooth Web API non supportata.");
+        return;
     }
 
-    document.getElementById('statusBadge').innerText = `Connesso a: ${myPrinterDevice.name}`;
-    document.getElementById('statusBadge').classList.add('connected');
-    addLog("Stampante pronta e configurata con successo!");
+    try {
+        addLog("Apertura ricerca dispositivi Bluetooth...");
+        bluetoothDevice = await navigator.bluetooth.requestDevice({
+            acceptAllDevices: true,
+            optionalServices: [
+                '000018f0-0000-1000-8000-00805f9b34fb',
+                '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+                'e7810a71-73ae-499d-8c15-faa9aef0c3f2'
+            ]
+        });
 
-    processPendingJobs();
-  } catch (error) {
-    console.error(error);
-    addLog(`Errore/Annullato: ${error.message}`);
-  }
+        addLog(`Dispositivo selezionato: ${bluetoothDevice.name || 'Sconosciuto'}`);
+
+        const server = await bluetoothDevice.gatt.connect();
+        addLog("Connessione GATT stabilita. Ricerca servizi in corso...");
+
+        const services = await server.getPrimaryServices();
+        for (const service of services) {
+            try {
+                const characteristics = await service.getCharacteristics();
+                for (const char of characteristics) {
+                    if (char.properties.write || char.properties.writeWithoutResponse) {
+                        bluetoothCharacteristic = char;
+                        break;
+                    }
+                }
+            } catch (e) {
+                console.warn("Servizio ignorato", e);
+            }
+            if (bluetoothCharacteristic) break;
+        }
+
+        if (!bluetoothCharacteristic) {
+            throw new Error("Nessuna caratteristica di scrittura compatibile trovata.");
+        }
+
+        document.getElementById('statusBadge').innerText = `Connesso a: ${bluetoothDevice.name || 'Stampante'}`;
+        document.getElementById('statusBadge').classList.add('connected');
+        addLog("Stampante pronta e configurata!");
+
+        bluetoothDevice.addEventListener('gattserverdisconnected', () => {
+            addLog("AVVISO: Stampante Bluetooth disconnessa!");
+            document.getElementById('statusBadge').innerText = "Stampante disconnessa";
+            document.getElementById('statusBadge').classList.remove('connected');
+            bluetoothCharacteristic = null;
+        });
+
+        processPendingJobs();
+
+    } catch (error) {
+        console.error(error);
+        addLog(`Errore/Annullato: ${error.message}`);
+    }
 }
 
-// 2. Lettura impostazioni dinamiche da Supabase (Tabella settings)[span_1](start_span)[span_1](end_span)
-async function getDatiImpostazioni() {
-  const { data, error } = await supabaseClient.from('settings').select('*');
-  let config = {
-    nome_locale: "NAKAI TIKI BAR",
-    indirizzo_locale: "Via dei Tiki, 1 Roma",
-    piva_locale: "P.IVA: 01234567890"
-  };
-
-  if (data && !error) {
-    data.forEach(row => {
-      const k = row.key || row.chiave;
-      const v = row.value || row.valore;
-
-      if (k === 'nome_locale' || k === 'nome') config.nome_locale = v;
-      if (k === 'indirizzo_locale' || k === 'indirizzo') config.indirizzo_locale = v;
-      if (k === 'piva_locale' || k === 'piva') config.piva_locale = v;
-    });
-  }
-  return config;
-}
-
-// 3. Funzione di stampa professionale aggiornata (Comande grandi + Preconto da settings)[span_2](start_span)[span_2](end_span)
+// 2. Invio dati alla stampante ottimizzato per 80mm
 async function sendToPrinter(payloadData) {
-  if (!myPrinterDevice || !myPrinterDevice.gatt.connected) {
-    throw new Error("Stampante Bluetooth disconnessa.");
-  }
+    if (!bluetoothDevice || !bluetoothDevice.gatt.connected || !bluetoothCharacteristic) {
+        throw new Error("Stampante Bluetooth disconnessa.");
+    }
 
-  const settings = await getDatiImpostazioni();
-  const tipoDoc = (payloadData.type || payloadData.tipo || 'comanda').toLowerCase();
-  
-  let textToPrint = "\x1B\x40"; // Inizializzazione stampante
-  textToPrint += "\x1B\x61\x01"; // Allineamento Centrato
+    const ESC = '\x1B';
+    const GS = '\x1D';
+    const INIT = ESC + '@';
+    const ALIGN_CENTER = ESC + 'a' + '\x01';
+    const ALIGN_LEFT = ESC + 'a' + '\x00';
+    const FONT_NORMAL = GS + '!' + '\x00'; 
+    const FONT_DOUBLE_W = GS + '!' + '\x10'; 
+    const FONT_LARGE = GS + '!' + '\x11';    
+    const BOLD_ON = ESC + 'E' + '\x01';
+    const BOLD_OFF = ESC + 'E' + '\x00';
+    const CUT = '\n\n\x1D\x56\x41\x03';
 
-  if (tipoDoc === 'conto' || tipoDoc === 'preconto') {
-    // --- GESTIONE PRECONTO (Contenuto, ben visibile, con info da settings) ---
-    const nomeLocale = payloadData.nome_locale || settings.nome_locale;
-    const indirizzoLocale = payloadData.indirizzo_locale || settings.indirizzo_locale;
-    const pivaLocale = payloadData.piva_locale || settings.piva_locale;
-    const operatore = payloadData.operatore || payloadData.cameriere || "Sala";
-    const idOrdine = payloadData.id_ordine || payloadData.ordine_id || "N/D";
+    let rawCommand = INIT;
 
-    textToPrint += "\x1D\x21\x01"; // Testo medio-grande
-    textToPrint += `${nomeLocale}\n`;
-    textToPrint += "\x1D\x21\x00"; // Testo normale
-    textToPrint += `${indirizzoLocale}\n`;
-    textToPrint += `${pivaLocale}\n`;
-    textToPrint += "================================\n";
-    textToPrint += "*** DOCUMENTO NON FISCALE ***\n";
-    textToPrint += "PRECONTO / CONTO TAVOLO\n";
-    textToPrint += "================================\n";
+    // --- LAYOUT PRECONTO PROFESSIONALE (80MM) ---
+    if (payloadData.type === 'PRECONTO') {
+        let restName = "RICEVUTA RISTORANTE";
+        let restAddress = "";
+        let restPhone = "";
+        let restSaluti = "GRAZIE E ARRIVEDERCI!";
+        let restQr = "";
 
-    const tavolo = payloadData.tavolo || payloadData.table || "N/D";
-    const coperti = payloadData.coperti ? `Coperti: ${payloadData.coperti}` : 'Coperti: 1';
-    
-    textToPrint += `TAVOLO: ${tavolo}  |  ${coperti}\n`;
-    textToPrint += `CONTO N: #${idOrdine} | OP: ${operatore}\n`;
-    textToPrint += `DATA: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n`;
-    textToPrint += "--------------------------------\n";
-    textToPrint += "ARTICOLI ORDINATI:\n";
-    textToPrint += "--------------------------------\n";
-
-    textToPrint += "\x1B\x61\x00"; // Allineamento a sinistra per gli articoli del conto
-    if (payloadData.items && Array.isArray(payloadData.items)) {
-      payloadData.items.forEach(item => {
-        const qty = item.qty || 1;
-        const name = item.name || item.nome || 'Articolo';
-        const prezzo = item.prezzo || item.price;
-        const nota = item.note || item.varianti ? ` (${item.note || item.varianti})` : '';
-
-        textToPrint += `${qty} x ${name}${nota}\n`;
-        if (prezzo) {
-          textToPrint += `   -> Subtotale: ${(qty * prezzo).toFixed(2)} EUR\n`;
+        if (supabaseClient) {
+            try {
+                // Legge le impostazioni basate sulla struttura chiave-valore di Supabase
+                const { data: settingsData } = await supabaseClient
+                    .from('settings')
+                    .select('*');
+                
+                if (settingsData && Array.isArray(settingsData)) {
+                    settingsData.forEach(row => {
+                        if (row.key === 'nome_locale') restName = row.value || restName;
+                        if (row.key === 'indirizzo_locale') restAddress = row.value || "";
+                        if (row.key === 'phone') restPhone = row.value ? `TEL. ${row.value}` : "";
+                        if (row.key === 'saluti') restSaluti = row.value || restSaluti;
+                        if (row.key === 'qr_code') restQr = row.value || "";
+                    });
+                }
+            } catch (err) {
+                console.warn("Impossibile leggere settings da Supabase", err);
+            }
         }
-      });
-    }
 
-    textToPrint += "\x1B\x61\x01"; // Torna centrato
-    textToPrint += "================================\n";
+        rawCommand += ALIGN_CENTER + FONT_DOUBLE_W + BOLD_ON;
+        rawCommand += `${restName.toUpperCase()}\n`;
+        rawCommand += FONT_NORMAL + BOLD_OFF;
+        if (restAddress) rawCommand += `${restAddress}\n`;
+        if (restPhone) rawCommand += `${restPhone}\n`;
+        rawCommand += `==========================================\n`;
+        rawCommand += `               NON FISCALE\n`;
+        rawCommand += FONT_DOUBLE_W + BOLD_ON + `PRECONTO - ${payloadData.table || 'Tavolo'}\n` + FONT_NORMAL + BOLD_OFF;
+        rawCommand += `       RITIRARE SCONTRINO ALLA CASSA\n`;
+        rawCommand += `==========================================\n`;
+        rawCommand += `                                      EURO\n`;
 
-    const totale = payloadData.totale || payloadData.total;
-    if (totale) {
-      textToPrint += "\x1D\x21\x01"; // Grande per il totale
-      textToPrint += `TOTALE: ${Number(totale).toFixed(2)} EUR\n`;
-      textToPrint += "\x1D\x21\x00";
-    }
+        let subTotale = 0;
 
-    textToPrint += "================================\n";
-    textToPrint += "Grazie per aver scelto il nostro locale!\n";
-    textToPrint += "Il personale vi augura una buona serata\n\n\n";
+        // 1. Stampa Articoli
+        if (payloadData.items && Array.isArray(payloadData.items)) {
+            payloadData.items.forEach(item => {
+                const qta = item.qty || 1;
+                const prezzo = item.price || 0;
+                const totRiga = qta * prezzo;
+                subTotale += totRiga;
 
-  } else {
-    // --- GESTIONE COMANDE (Grandi, Tavolo in alto, Categoria Cucina/Bar) ---
-    const reparto = (payloadData.reparto || payloadData.category || 'CUCINA').toUpperCase();
-    const tavolo = payloadData.tavolo || payloadData.table || "N/D";
-    const operatore = payloadData.operatore || payloadData.cameriere || "Sala";
-    const idOrdine = payloadData.id_ordine || "N/D";
-
-    // Intestazione Reparto (es. CUCINA o BAR)
-    textToPrint += "\x1D\x21\x11"; // Molto grande
-    textToPrint += `*** ${reparto} ***\n\n`;
-
-    // Tavolo in evidenza grande
-    textToPrint += "\x1D\x21\x22"; // Extra grande per il tavolo
-    textToPrint += `TAVOLO: ${tavolo}\n`;
-    
-    textToPrint += "\x1D\x21\x00"; // Normale
-    textToPrint += `Comanda #${idOrdine} | Cameriere: ${operatore}\n`;
-    textToPrint += `Ora: ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n`;
-    textToPrint += "================================\n\n";
-
-    // Articoli ben visibili, centrati o ben marcati
-    if (payloadData.items && Array.isArray(payloadData.items)) {
-      payloadData.items.forEach(item => {
-        const qty = item.qty || 1;
-        const name = item.name || item.nome || 'Generico';
-        const nota = item.note || item.varianti ? `\nNOTE: ${item.note || item.varianti}` : '';
-
-        textToPrint += "\x1D\x21\x01"; // Testo ingrandito per gli item della comanda
-        textToPrint += `> ${qty} PZ - ${name.toUpperCase()} <\n`;
-        if (nota) {
-          textToPrint += "\x1D\x21\x00";
-          textToPrint += `${nota}\n`;
+                const prezzoStr = totRiga.toFixed(2).replace('.', ',');
+                const nomeArticolo = (item.name || 'Articolo').toUpperCase();
+                
+                rawCommand += ALIGN_LEFT + BOLD_ON + `${qta} X ${prezzo.toFixed(2).replace('.', ',')}\n` + BOLD_OFF;
+                const spazi = Math.max(1, 42 - nomeArticolo.length - prezzoStr.length);
+                rawCommand += FONT_DOUBLE_W + `${nomeArticolo}` + FONT_NORMAL + `${' '.repeat(spazi)}${prezzoStr}\n`;
+            });
         }
-        textToPrint += "\n";
-      });
-    }
 
-    textToPrint += "\x1D\x21\x00";
-    textToPrint += "================================\n";
-    textToPrint += "[ FINE COMANDA ]\n\n\n";
-  }
+        // 2. Gestione Coperti
+        const numCoperti = payloadData.seats !== undefined ? parseInt(payloadData.seats) : 0;
+        const prezzoCoperto = payloadData.cover_price !== undefined ? parseFloat(payloadData.cover_price) : 0;
+        
+        if (numCoperti > 0 && prezzoCoperto > 0) {
+            const totCoperti = numCoperti * prezzoCoperto;
+            subTotale += totCoperti;
+            const copertoStr = totCoperti.toFixed(2).replace('.', ',');
+            const nomeCoperto = `COPERTO x ${numCoperti}`;
+            const spaziC = Math.max(1, 42 - nomeCoperto.length - copertoStr.length);
+            rawCommand += `------------------------------------------\n`;
+            rawCommand += FONT_DOUBLE_W + `${nomeCoperto}` + FONT_NORMAL + `${' '.repeat(spaziC)}${copertoStr}\n`;
+        }
 
-  textToPrint += "\x1B\x45\x0"; // Disattiva grassetto
-  textToPrint += "\x1B\x69";     // Taglio carta (se supportato dalla stampante)
+        // 3. Gestione Sconti
+        let importoScaricato = 0;
+        if (payloadData.discount_amount && payloadData.discount_amount > 0) {
+            importoScaricato = parseFloat(payloadData.discount_amount);
+        } else if (payloadData.discount_percent && payloadData.discount_percent > 0) {
+            importoScaricato = subTotale * (parseFloat(payloadData.discount_percent) / 100);
+        }
 
-  const encoder = new TextEncoder();
-  const data = encoder.encode(textToPrint);
-  if (bluetoothCharacteristic) {
-    await bluetoothCharacteristic.writeValue(data);
-  } else {
-    throw new Error("Caratteristica di scrittura Bluetooth non trovata.");
-  }
-}
+        if (importoScaricato > 0) {
+            subTotale -= importoScaricato;
+            const scontoStr = `-${importoScaricato.toFixed(2).replace('.', ',')}`;
+            const labelSconto = payloadData.discount_label ? payloadData.discount_label.toUpperCase() : "SCONTO APPLICATO";
+            const spaziS = Math.max(1, 42 - labelSconto.length - scontoStr.length);
+            rawCommand += `------------------------------------------\n`;
+            rawCommand += BOLD_ON + `${labelSconto}${' '.repeat(spaziS)}${scontoStr}\n` + BOLD_OFF;
+        }
 
-// 4. Elaborazione della coda print_jobs da Supabase
-async function processPendingJobs() {
-  if (!myPrinterDevice || !myPrinterDevice.gatt.connected) {
-    addLog("Stampante offline. Impossibile elaborare la coda.");
-    return;
-  }
+        const totaleStr = subTotale.toFixed(2).replace('.', ',');
+        rawCommand += `------------------------------------------\n`;
+        rawCommand += FONT_DOUBLE_W + BOLD_ON + `TOTALE: ${totaleStr} EURO\n` + FONT_NORMAL + BOLD_OFF;
+        
+        // 4. Divisione automatica del conto per coperti
+        if (numCoperti > 1) {
+            const quotaCadauno = (subTotale / numCoperti).toFixed(2).replace('.', ',');
+            rawCommand += `------------------------------------------\n`;
+            rawCommand += ALIGN_CENTER + BOLD_ON + `Ripartizione per ${numCoperti} coperti:\n`;
+            rawCommand += `Circa ${quotaCadauno} EURO a persona\n` + BOLD_OFF;
+        }
 
-  addLog("Controllo ordini in coda su Supabase...");
-  const { data: pendingJobs, error } = await supabaseClient
-    .from('print_jobs')
-    .select('*')
-    .eq('status', 'nuovo')
-    .order('id', { ascending: true });
+        rawCommand += `==========================================\n`;
+        
+        // 5. Messaggio di cortesia / Saluti e Link Recensioni (QR)
+        const now = new Date();
+        rawCommand += ALIGN_CENTER + BOLD_ON;
+        rawCommand += `${restSaluti.toUpperCase()}\n`;
+        rawCommand += BOLD_OFF;
+        
+        if (restQr) {
+            rawCommand += `Lascia una recensione:\n${restQr}\n`;
+        }
 
-  if (error) {
-    addLog(`Errore lettura DB: ${error.message}`);
-    return;
-  }
+        rawCommand += `------------------------------------------\n`;
+        rawCommand += ALIGN_LEFT;
+        rawCommand += `CASSA: 01                             ${now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}\n`;
+        rawCommand += `${now.toLocaleDateString('it-IT')}\n`;
+        rawCommand += `               NON FISCALE\n`;
+        rawCommand += CUT;
 
-  if (pendingJobs && pendingJobs.length > 0) {
-    addLog(`Trovati ${pendingJobs.length} ordini da stampare.`);
+    } else {
+        // --- LAYOUT COMANDA (Cucina / Bar) - EXTRA LARGE 80MM ---
+        const tipoComanda = (payloadData.type || 'COMANDA').toUpperCase();
+        const nomeTavolo = payloadData.table || 'Tavolo';
+        const numCoperti = payloadData.seats !== undefined ? payloadData.seats : '-';
+        const now = new Date();
 
-    for (const job of pendingJobs) {
-      try {
-        addLog(`Invio in stampa ordine ID: ${job.id}...`);
-        await sendToPrinter(job.payload);
+        rawCommand += ALIGN_CENTER + FONT_LARGE + BOLD_ON;
+        rawCommand += `*** ${tipoComanda} ***\n`;
+        rawCommand += FONT_DOUBLE_W + `TAVOLO: ${nomeTavolo}\n`;
+        rawCommand += FONT_NORMAL + BOLD_OFF;
+        rawCommand += `------------------------------------------\n`;
+        rawCommand += FONT_DOUBLE_W + BOLD_ON + `COPERTI: ${numCoperti}  |  ${now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}\n` + FONT_NORMAL + BOLD_OFF;
+        rawCommand += `==========================================\n\n`;
 
-        const { error: updateError } = await supabaseClient
-          .from('print_jobs')
-          .update({ status: 'stampato' })
-          .eq('id', job.id);
+        rawCommand += ALIGN_LEFT;
+        if (payloadData.items && Array.isArray(payloadData.items)) {
+            payloadData.items.forEach(item => {
+                const qta = item.qty || 1;
+                const nomeArticolo = (item.name || 'Articolo').toUpperCase();
+                
+                rawCommand += FONT_LARGE + BOLD_ON;
+                rawCommand += `> ${qta} PZ - ${nomeArticolo}\n`;
+                rawCommand += FONT_NORMAL + BOLD_OFF;
 
-        if (updateError) {
-          addLog(`Errore aggiornamento stato ID ${job.id}: ${updateError.message}`);
-          break;
+                if (item.notes) {
+                    rawCommand += FONT_DOUBLE_W + `   NOTE: ${item.notes.toUpperCase()}\n` + FONT_NORMAL;
+                }
+                rawCommand += `------------------------------------------\n`;
+            });
         } else {
-          addLog(`Ordine ID ${job.id} stampato e aggiornato con successo!`);
+            rawCommand += FONT_NORMAL + JSON.stringify(payloadData) + "\n";
         }
 
-      } catch (err) {
-        addLog(`Errore di stampa su ID ${job.id}: ${err.message}. Interrompo la coda.`);
-        break;
-      }
+        rawCommand += `\n==========================================\n`;
+        rawCommand += CUT;
     }
-  } else {
-    addLog("Nessun ordine in sospeso.");
-  }
+
+    const encoder = new TextEncoder();
+    const data = encoder.encode(rawCommand);
+
+    const CHUNK_SIZE = 512;
+    for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+        const chunk = data.slice(i, i + CHUNK_SIZE);
+        if (bluetoothCharacteristic.properties.writeWithoutResponse) {
+            await bluetoothCharacteristic.writeValueWithoutResponse(chunk);
+        } else {
+            await bluetoothCharacteristic.writeValue(chunk);
+        }
+    }
 }
 
-// 5. Ascolto in tempo reale su Supabase
-supabaseClient
-  .channel('public:print_jobs')
-  .on('postgres_changes', {
-    event: 'INSERT',
-    schema: 'public',
-    table: 'print_jobs'
-  }, async (payload) => {
-    if (payload.new && payload.new.status === 'nuovo') {
-      addLog(`Nuovo ordine ricevuto in tempo reale! ID: ${payload.new.id}`);
-      await processPendingJobs();
+// 3. Elaborazione coda Supabase
+async function processPendingJobs() {
+    if (!supabaseClient) {
+        addLog("Supabase non configurato.");
+        return;
     }
-  })
-  .subscribe((status) => {
-    addLog(`Canale Realtime Supabase: ${status}`);
-  });
+    if (!bluetoothDevice || !bluetoothDevice.gatt.connected) {
+        return;
+    }
 
-// Controllo periodico di sicurezza ogni 30 secondi
+    addLog("Controllo ordini in coda su Supabase...");
+    const { data: pendingJobs, error } = await supabaseClient
+        .from('print_jobs')
+        .select('*')
+        .eq('status', 'nuovo')
+        .order('id', { ascending: true });
+
+    if (error) {
+        addLog(`Errore lettura DB: ${error.message}`);
+        return;
+    }
+
+    if (pendingJobs && pendingJobs.length > 0) {
+        addLog(`Trovati ${pendingJobs.length} ordini da stampare.`);
+
+        for (const job of pendingJobs) {
+            try {
+                addLog(`Invio in stampa ordine ID: ${job.id}...`);
+                await sendToPrinter(job.payload);
+
+                const { error: updateError } = await supabaseClient
+                    .from('print_jobs')
+                    .update({ status: 'stampato' })
+                    .eq('id', job.id);
+
+                if (updateError) {
+                    addLog(`Errore aggiornamento ID ${job.id}: ${updateError.message}`);
+                    break;
+                } else {
+                    addLog(`Ordine ID ${job.id} stampato con successo!`);
+                }
+            } catch (err) {
+                addLog(`Errore di stampa su ID ${job.id}: ${err.message}`);
+                break;
+            }
+        }
+    }
+}
+
+// 4. Realtime Supabase
+if (supabaseClient) {
+    try {
+        supabaseClient
+            .channel('public:print_jobs')
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'print_jobs'
+            }, async (payload) => {
+                if (payload.new && payload.new.status === 'nuovo') {
+                    addLog(`Nuovo ordine in tempo reale! ID: ${payload.new.id}`);
+                    await processPendingJobs();
+                }
+            })
+            .subscribe((status, err) => {
+                if (err) {
+                    addLog(`Errore Realtime: ${err.message}`);
+                } else {
+                    addLog(`Canale Realtime: ${status}`);
+                }
+            });
+    } catch (e) {
+        addLog(`Impossibile attivare Realtime: ${e.message}`);
+    }
+}
+
+// Controllo periodico
 setInterval(() => {
-  if (myPrinterDevice && myPrinterDevice.gatt.connected) {
-    processPendingJobs();
-  }
+    if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+        processPendingJobs();
+    }
 }, 30000);
 </script>
 

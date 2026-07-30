@@ -175,7 +175,7 @@ async function connettiStampante() {
         }
 
         document.getElementById('statusBadge').innerText = `Connesso a: ${bluetoothDevice.name || 'Stampante'}`;
-        document.getElementById('statusBadge').classList.add('connected');
+        document.getElementById('statusBadge'].classList.add('connected');
         addLog("Stampante pronta e configurata!");
 
         bluetoothDevice.addEventListener('gattserverdisconnected', () => {
@@ -335,46 +335,70 @@ async function sendToPrinter(payloadData) {
         rawCommand += CUT;
 
     } else {
-        // --- LAYOUT COMANDA (Cucina / Bar) - GRANDE AL CENTRO E DIVISO ---
+        // --- LAYOUT COMANDA (Cucina / Bar) - CENTRATO CON PAGINAZIONE SICURA ---
         const tipoComanda = (payloadData.type || 'COMANDA').toUpperCase();
         const nomeTavolo = payloadData.table || 'Tavolo';
         const numCoperti = payloadData.seats !== undefined ? payloadData.seats : '-';
         const now = new Date();
 
-        rawCommand += ALIGN_CENTER + FONT_LARGE + BOLD_ON;
-        rawCommand += `*** ${tipoComanda} ***\n\n`;
-        
-        // TAVOLO SCRITTO GRANDE AL CENTRO
-        rawCommand += FONT_LARGE + BOLD_ON;
-        rawCommand += `TAVOLO: ${nomeTavolo}\n`;
-        
-        rawCommand += FONT_NORMAL + BOLD_OFF;
-        rawCommand += `------------------------------------------\n`;
-        rawCommand += `COPERTI: ${numCoperti}  |  Ora: ${now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}\n`;
-        rawCommand += `==========================================\n\n`;
+        // Funzione di supporto per generare una pagina di comanda centrata
+        const generaPaginaComanda = (articoliSlice, numeroPagina, totalePagine) => {
+            let paginaStr = ALIGN_CENTER + FONT_LARGE + BOLD_ON;
+            paginaStr += `*** ${tipoComanda} ***\n`;
+            if (totalePagine > 1) {
+                paginaStr += FONT_NORMAL + `(Pag. ${numeroPagina} di ${totalePagine})\n`;
+                paginaStr += FONT_LARGE + BOLD_ON;
+            }
+            paginaStr += `\n`;
+            
+            // Tavolo in evidenza al centro
+            paginaStr += `TAVOLO: ${nomeTavolo}\n`;
+            
+            paginaStr += FONT_NORMAL + BOLD_OFF;
+            paginaStr += `------------------------------------------\n`;
+            paginaStr += `COPERTI: ${numCoperti} | ${now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}\n`;
+            paginaStr += `==========================================\n\n`;
 
-        rawCommand += ALIGN_LEFT;
-        if (payloadData.items && Array.isArray(payloadData.items)) {
-            payloadData.items.forEach(item => {
+            // Articoli stampati rigorosamente al centro per evitare i tagli laterali
+            articoliSlice.forEach(item => {
                 const qta = item.qty || 1;
                 const nomeArticolo = (item.name || 'Articolo').toUpperCase();
                 
-                // ITEMS DELLA COMANDA BEN EVIDENTI E GRANDI
-                rawCommand += FONT_LARGE + BOLD_ON;
-                rawCommand += `> ${qta} PZ - ${nomeArticolo}\n`;
-                rawCommand += FONT_NORMAL + BOLD_OFF;
+                paginaStr += ALIGN_CENTER + FONT_DOUBLE_W + BOLD_ON;
+                paginaStr += `> ${qta} PZ - ${nomeArticolo} <\n`;
+                paginaStr += FONT_NORMAL + BOLD_OFF;
 
                 if (item.notes) {
-                    rawCommand += FONT_DOUBLE_W + `   NOTE: ${item.notes.toUpperCase()}\n` + FONT_NORMAL;
+                    paginaStr += ALIGN_CENTER + BOLD_ON;
+                    paginaStr += `NOTE: ${item.notes.toUpperCase()}\n`;
+                    paginaStr += BOLD_OFF;
                 }
-                rawCommand += `------------------------------------------\n`;
+                paginaStr += `------------------------------------------\n`;
             });
-        } else {
-            rawCommand += FONT_NORMAL + JSON.stringify(payloadData) + "\n";
-        }
 
-        rawCommand += `\n==========================================\n`;
-        rawCommand += CUT;
+            paginaStr += `\n==========================================\n`;
+            paginaStr += CUT;
+            return paginaStr;
+        };
+
+        if (payloadData.items && Array.isArray(payloadData.items) && payloadData.items.length > 0) {
+            const CHUNK_LIMIT = 5; // Massimo numero di articoli per pagina per evitare che si accavallino o vengano tagliati male
+            const items = payloadData.items;
+            const totalePagine = Math.ceil(items.length / CHUNK_LIMIT);
+
+            for (let p = 0; p < totalePagine; p++) {
+                const sliceArticoli = items.slice(p * CHUNK_LIMIT, (p + 1) * CHUNK_LIMIT);
+                rawCommand += generaPaginaComanda(sliceArticoli, p + 1, totalePagine);
+            }
+        } else {
+            rawCommand += ALIGN_CENTER + FONT_LARGE + BOLD_ON;
+            rawCommand += `*** ${tipoComanda} ***\n\n`;
+            rawCommand += `TAVOLO: ${nomeTavolo}\n`;
+            rawCommand += FONT_NORMAL + BOLD_OFF;
+            rawCommand += `------------------------------------------\n`;
+            rawCommand += JSON.stringify(payloadData) + "\n";
+            rawCommand += CUT;
+        }
     }
 
     const encoder = new TextEncoder();

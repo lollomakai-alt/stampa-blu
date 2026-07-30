@@ -213,7 +213,7 @@ async function sendToPrinter(payloadData) {
 
     let rawCommand = INIT;
 
-    // --- LAYOUT PRECONTO PROFESSIONALE (80MM) ---
+    // --- LAYOUT PRECONTO PROFESSIONALE (80MM) CON INFO DA SETTINGS ---
     if (payloadData.type === 'PRECONTO') {
         let restName = "RICEVUTA RISTORANTE";
         let restAddress = "";
@@ -223,7 +223,6 @@ async function sendToPrinter(payloadData) {
 
         if (supabaseClient) {
             try {
-                // Legge le impostazioni basate sulla struttura chiave-valore di Supabase
                 const { data: settingsData } = await supabaseClient
                     .from('settings')
                     .select('*');
@@ -336,18 +335,22 @@ async function sendToPrinter(payloadData) {
         rawCommand += CUT;
 
     } else {
-        // --- LAYOUT COMANDA (Cucina / Bar) - EXTRA LARGE 80MM ---
+        // --- LAYOUT COMANDA (Cucina / Bar) - GRANDE AL CENTRO E DIVISO ---
         const tipoComanda = (payloadData.type || 'COMANDA').toUpperCase();
         const nomeTavolo = payloadData.table || 'Tavolo';
         const numCoperti = payloadData.seats !== undefined ? payloadData.seats : '-';
         const now = new Date();
 
         rawCommand += ALIGN_CENTER + FONT_LARGE + BOLD_ON;
-        rawCommand += `*** ${tipoComanda} ***\n`;
-        rawCommand += FONT_DOUBLE_W + `TAVOLO: ${nomeTavolo}\n`;
+        rawCommand += `*** ${tipoComanda} ***\n\n`;
+        
+        // TAVOLO SCRITTO GRANDE AL CENTRO
+        rawCommand += FONT_LARGE + BOLD_ON;
+        rawCommand += `TAVOLO: ${nomeTavolo}\n`;
+        
         rawCommand += FONT_NORMAL + BOLD_OFF;
         rawCommand += `------------------------------------------\n`;
-        rawCommand += FONT_DOUBLE_W + BOLD_ON + `COPERTI: ${numCoperti}  |  ${now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}\n` + FONT_NORMAL + BOLD_OFF;
+        rawCommand += `COPERTI: ${numCoperti}  |  Ora: ${now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}\n`;
         rawCommand += `==========================================\n\n`;
 
         rawCommand += ALIGN_LEFT;
@@ -356,6 +359,7 @@ async function sendToPrinter(payloadData) {
                 const qta = item.qty || 1;
                 const nomeArticolo = (item.name || 'Articolo').toUpperCase();
                 
+                // ITEMS DELLA COMANDA BEN EVIDENTI E GRANDI
                 rawCommand += FONT_LARGE + BOLD_ON;
                 rawCommand += `> ${qta} PZ - ${nomeArticolo}\n`;
                 rawCommand += FONT_NORMAL + BOLD_OFF;

@@ -58,6 +58,10 @@ body {
     font-size: 14px;
     cursor: pointer;
     text-align: center;
+    transition: background-color 0.2s;
+}
+.actionButton:hover {
+    background-color: #1D4ED8;
 }
 .logBox {
     background-color: #030712;
@@ -114,6 +118,7 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let myPrinterDevice = null;
 let bluetoothCharacteristic = null;
+let isProcessingQueue = false;
 
 function addLog(msg) {
     const logBox = document.getElementById('logBox');
@@ -123,7 +128,59 @@ function addLog(msg) {
     }
 }
 
-// 1. Connessione Bluetooth
+// 1. Gestione Disconnessione Bluetooth
+function onDisconnected(event) {
+    addLog("ATTENZIONE: Stampante Bluetooth disconnessa.");
+    const badge = document.getElementById('statusBadge');
+    badge.innerText = "Stampante disconnessa (Riconnessione...)";
+    badge.classList.remove('connected');
+    bluetoothCharacteristic = null;
+    
+    // Tentativo di riconnessione automatica al dispositivo salvato se possibile
+    if (myPrinterDevice && myPrinterDevice.gatt) {
+        setTimeout(async () => {
+            try {
+                addLog("Tentativo di riconnessione automatica GATT...");
+                const server = await myPrinterDevice.gatt.connect();
+                await setupCharacteristics(server);
+            } catch (err) {
+                addLog(`Riconnessione automatica fallita: ${err.message}. Clicca su associa.`);
+                badge.innerText = "Disconnesso. Associa manualmente.";
+            }
+        }, 4000);
+    }
+}
+
+async function setupCharacteristics(server) {
+    addLog("Connessione GATT stabilita. Cerco il servizio di stampa...");
+    const services = await server.getPrimaryServices();
+    for (const service of services) {
+        try {
+            const characteristics = await service.getCharacteristics();
+            for (const char of characteristics) {
+                if (char.properties.write || char.properties.writeWithoutResponse) {
+                    bluetoothCharacteristic = char;
+                    break;
+                }
+            }
+        } catch (e) {
+            console.warn("Servizio ignorato", e);
+        }
+        if (bluetoothCharacteristic) break;
+    }
+
+    if (!bluetoothCharacteristic) {
+        throw new Error("Nessuna caratteristica di scrittura compatibile trovata.");
+    }
+
+    document.getElementById('statusBadge').innerText = `Connesso a: ${myPrinterDevice.name || 'Stampante'}`;
+    document.getElementById('statusBadge').classList.add('connected');
+    addLog("Stampante pronta e configurata con successo!");
+
+    processPendingJobs();
+}
+
+// 2. Connessione Bluetooth Manuale
 async function connettiStampante() {
     if (!navigator.bluetooth) {
         alert("Il Bluetooth non è supportato da questo browser. Usa Google Chrome su Android o Desktop.");
@@ -142,36 +199,14 @@ async function connettiStampante() {
             ]
         });
 
+        // Rimuoviamo eventuali listener precedenti per evitare duplicati
+        myPrinterDevice.removeEventListener('gattserverdisconnected', onDisconnected);
+        myPrinterDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
         addLog(`Dispositivo selezionato: ${myPrinterDevice.name || 'Sconosciuto'}`);
 
         const server = await myPrinterDevice.gatt.connect();
-        addLog("Connessione GATT stabilita. Cerco il servizio di stampa...");
-
-        const services = await server.getPrimaryServices();
-        for (const service of services) {
-            try {
-                const characteristics = await service.getCharacteristics();
-                for (const char of characteristics) {
-                    if (char.properties.write || char.properties.writeWithoutResponse) {
-                        bluetoothCharacteristic = char;
-                        break;
-                    }
-                }
-            } catch (e) {
-                console.warn("Servizio ignorato", e);
-            }
-            if (bluetoothCharacteristic) break;
-        }
-
-        if (!bluetoothCharacteristic) {
-            throw new Error("Nessuna caratteristica di scrittura compatibile trovata.");
-        }
-
-        document.getElementById('statusBadge').innerText = `Connesso a: ${myPrinterDevice.name}`;
-        document.getElementById('statusBadge').classList.add('connected');
-        addLog("Stampante pronta e configurata con successo!");
-
-        processPendingJobs();
+        await setupCharacteristics(server);
 
     } catch (error) {
         console.error(error);
@@ -179,7 +214,7 @@ async function connettiStampante() {
     }
 }
 
-// 2. Lettura impostazioni dinamiche da Supabase
+// 3. Lettura impostazioni dinamiche da Supabase
 async function getDatiImpostazioni() {
     const { data, error } = await supabaseClient.from('settings').select('*');
     let config = {
@@ -201,7 +236,7 @@ async function getDatiImpostazioni() {
     return config;
 }
 
-// 3. Funzione di stampa professionale
+// 4. Funzione di stampa professionale
 async function sendToPrinter(payloadData) {
     if (!myPrinterDevice || !myPrinterDevice.gatt.connected || !bluetoothCharacteristic) {
         throw new Error("Stampante Bluetooth disconnessa.");
@@ -333,7 +368,8 @@ async function sendToPrinter(payloadData) {
     const encoder = new TextEncoder();
     const data = encoder.encode(textToPrint);
 
-    const CHUNK_SIZE = 512;
+    // CHUNK_SIZE ridotto a 128 byte per maggiore stabilità su stampanti termiche economiche BLE
+    const CHUNK_SIZE = 128;
     for (let i = 0; i < data.length; i += CHUNK_SIZE) {
         const chunk = data.slice(i, i + CHUNK_SIZE);
         if (bluetoothCharacteristic.properties.writeWithoutResponse) {
@@ -341,58 +377,66 @@ async function sendToPrinter(payloadData) {
         } else {
             await bluetoothCharacteristic.writeValue(chunk);
         }
+        // Breve pausa per evitare il sovraccarico del buffer della stampante
+        await new Promise(resolve => setTimeout(resolve, 20));
     }
 }
 
-// 4. Elaborazione della coda
+// 5. Elaborazione della coda protetta da lock (evita esecuzioni multiple concorrenti)
 async function processPendingJobs() {
-    if (!myPrinterDevice || !myPrinterDevice.gatt.connected) {
-        addLog("Stampante offline. Impossibile elaborare la coda.");
+    if (isProcessingQueue) return;
+    if (!myPrinterDevice || !myPrinterDevice.gatt || !myPrinterDevice.gatt.connected) {
         return;
     }
 
-    addLog("Controllo ordini in coda su Supabase...");
-    const { data: pendingJobs, error } = await supabaseClient
-        .from('print_jobs')
-        .select('*')
-        .eq('status', 'nuovo')
-        .order('id', { ascending: true });
+    isProcessingQueue = true;
 
-    if (error) {
-        addLog(`Errore lettura DB: ${error.message}`);
-        return;
-    }
+    try {
+        const { data: pendingJobs, error } = await supabaseClient
+            .from('print_jobs')
+            .select('*')
+            .eq('status', 'nuovo')
+            .order('id', { ascending: true });
 
-    if (pendingJobs && pendingJobs.length > 0) {
-        addLog(`Trovati ${pendingJobs.length} ordini da stampare.`);
+        if (error) {
+            addLog(`Errore lettura DB: ${error.message}`);
+            isProcessingQueue = false;
+            return;
+        }
 
-        for (const job of pendingJobs) {
-            try {
-                addLog(`Invio in stampa ordine ID: ${job.id}...`);
-                await sendToPrinter(job.payload);
+        if (pendingJobs && pendingJobs.length > 0) {
+            addLog(`Trovati ${pendingJobs.length} ordini da stampare.`);
 
-                const { error: updateError } = await supabaseClient
-                    .from('print_jobs')
-                    .update({ status: 'stampato' })
-                    .eq('id', job.id);
+            for (const job of pendingJobs) {
+                try {
+                    addLog(`Invio in stampa ordine ID: ${job.id}...`);
+                    await sendToPrinter(job.payload);
 
-                if (updateError) {
-                    addLog(`Errore aggiornamento stato ID ${job.id}: ${updateError.message}`);
+                    const { error: updateError } = await supabaseClient
+                        .from('print_jobs')
+                        .update({ status: 'stampato' })
+                        .eq('id', job.id);
+
+                    if (updateError) {
+                        addLog(`Errore aggiornamento stato ID ${job.id}: ${updateError.message}`);
+                        break;
+                    } else {
+                        addLog(`Ordine ID ${job.id} stampato e aggiornato con successo!`);
+                    }
+                } catch (err) {
+                    addLog(`Errore di stampa su ID ${job.id}: ${err.message}. Interrompo la coda.`);
                     break;
-                } else {
-                    addLog(`Ordine ID ${job.id} stampato e aggiornato con successo!`);
                 }
-            } catch (err) {
-                addLog(`Errore di stampa su ID ${job.id}: ${err.message}. Interrompo la coda.`);
-                break;
             }
         }
-    } else {
-        addLog("Nessun ordine in sospeso.");
+    } catch (e) {
+        console.error(e);
+    } finally {
+        isProcessingQueue = false;
     }
 }
 
-// 5. Ascolto in tempo reale
+// 6. Ascolto in tempo reale e polling di sicurezza
 if (supabaseClient) {
     supabaseClient
         .channel('public:print_jobs')
@@ -412,7 +456,7 @@ if (supabaseClient) {
 }
 
 setInterval(() => {
-    if (myPrinterDevice && myPrinterDevice.gatt.connected) {
+    if (myPrinterDevice && myPrinterDevice.gatt && myPrinterDevice.gatt.connected) {
         processPendingJobs();
     }
 }, 30000);

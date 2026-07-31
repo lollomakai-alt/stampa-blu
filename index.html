@@ -146,6 +146,18 @@
     border-radius:3px;
   }
   input:focus{outline:none;border-color:var(--green-dim);}
+  select{
+    width:100%;
+    background:#080c09;
+    border:1px solid var(--line);
+    color:var(--text);
+    font-family:'Share Tech Mono', monospace;
+    font-size:13px;
+    padding:8px 9px;
+    border-radius:3px;
+  }
+  select:focus{outline:none;border-color:var(--green-dim);}
+  input:disabled{opacity:.5;}
 
   details summary{
     cursor:pointer;
@@ -215,15 +227,23 @@
     <details>
       <summary>// CONFIG SUPABASE (modifica CONFIG nel file per uso reale)</summary>
       <label for="inUrl">SUPABASE URL</label>
-      <input id="inUrl" placeholder="https://xxxx.supabase.co">
+      <input id="inUrl" placeholder="https://xxxx.supabase.co" value="https://yyrawuynqukwszvotiuu.supabase.co">
       <label for="inKey">ANON KEY</label>
-      <input id="inKey" placeholder="eyJhbGciOi...">
+      <input id="inKey" placeholder="eyJhbGciOi..." value="sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b">
       <label for="inTable">TABELLA</label>
-      <input id="inTable" placeholder="print_jobs">
+      <input id="inTable" placeholder="print_jobs" value="print_jobs">
+      <label for="inMode">MODALITA' STAMPANTE</label>
+      <select id="inMode">
+        <option value="tutto">TUTTO (comande cucina+bar, separate, + preconti)</option>
+        <option value="bar">SOLO COMANDE BAR</option>
+        <option value="cucina">SOLO COMANDE CUCINA</option>
+        <option value="preconti">SOLO PRECONTI</option>
+        <option value="custom">PERSONALIZZATO</option>
+      </select>
       <label for="inTypes">TIPI DA STAMPARE (COMANDA,PRECONTO)</label>
-      <input id="inTypes" placeholder="COMANDA">
-      <label for="inDest">DESTINAZIONE (solo per COMANDA — Cucina/Bar/vuoto=tutto)</label>
-      <input id="inDest" placeholder="Cucina">
+      <input id="inTypes" placeholder="COMANDA" value="COMANDA,PRECONTO">
+      <label for="inDest">DESTINAZIONE (solo per COMANDA — vuoto = un ticket separato per Cucina/Bar dalla stessa stampante; Cucina/Bar = stampa solo quella)</label>
+      <input id="inDest" placeholder="Cucina" value="">
       <button id="btnSaveCfg" style="margin-top:12px;">SALVA CONFIG (sessione corrente)</button>
     </details>
   </div>
@@ -245,11 +265,12 @@
    valgono solo per la sessione corrente (non salvati su disco).
    ============================================================ */
 const CONFIG = {
-  supabaseUrl: "",
-  supabaseAnonKey: "",
+  supabaseUrl: "https://yyrawuynqukwszvotiuu.supabase.co",
+  supabaseAnonKey: "sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b",
   table: "print_jobs",
   // Quali tipi di payload questa istanza deve stampare: "COMANDA", "PRECONTO", o entrambi.
-  jobTypes: ["COMANDA"],
+  // Di default stampa tutto (unica stampante per bar, cucina e preconti).
+  jobTypes: ["COMANDA", "PRECONTO"],
   // Solo per i job di tipo COMANDA: se impostata, stampa solo gli item con questa destinazione
   // (es. "Cucina" o "Bar"). Lascia vuota per stampare tutti gli item. Ignorata per i PRECONTO,
   // che devono sempre includere tutti gli articoli del conto.
@@ -413,6 +434,31 @@ $("btnTest").addEventListener("click", async () => {
 
 /* ---------- SUPABASE REALTIME ---------- */
 
+/* ---------- PRESET MODALITA' STAMPANTE ---------- */
+
+const MODE_PRESETS = {
+  tutto:    { types: ["COMANDA", "PRECONTO"], dest: "" },
+  bar:      { types: ["COMANDA"], dest: "Bar" },
+  cucina:   { types: ["COMANDA"], dest: "Cucina" },
+  preconti: { types: ["PRECONTO"], dest: "" }
+};
+
+function applyModePreset(mode){
+  if(mode === "custom"){
+    $("inTypes").disabled = false;
+    $("inDest").disabled = false;
+    return;
+  }
+  const preset = MODE_PRESETS[mode];
+  $("inTypes").value = preset.types.join(",");
+  $("inDest").value = preset.dest;
+  $("inTypes").disabled = true;
+  $("inDest").disabled = true;
+}
+
+$("inMode").addEventListener("change", (e) => applyModePreset(e.target.value));
+applyModePreset($("inMode").value); // applica il preset di default all'avvio
+
 $("btnSaveCfg").addEventListener("click", () => {
   CONFIG.supabaseUrl = $("inUrl").value.trim() || CONFIG.supabaseUrl;
   CONFIG.supabaseAnonKey = $("inKey").value.trim() || CONFIG.supabaseAnonKey;
@@ -430,9 +476,9 @@ function getTavolo(payload){
   return payload.tavolo ?? payload.table ?? payload.tableName ?? "-";
 }
 
-function buildComandaReceipt(payload, items){
+function buildComandaReceipt(payload, items, destLabel){
   const lines = [
-    {text:"COMANDA", bold:true, center:true},
+    {text:"COMANDA" + (destLabel ? " - " + String(destLabel).toUpperCase() : ""), bold:true, center:true},
     {text:"Tavolo " + getTavolo(payload), bold:true, center:true},
     {text:"--------------------------------", center:true},
   ];
@@ -467,28 +513,46 @@ async function printJob(job){
   try{
     const payload = job.payload || {};
     const tutti = Array.isArray(payload.items) ? payload.items : [];
-    let lines;
 
     if(payload.type === "COMANDA"){
-      const items = CONFIG.printerDestination
-        ? tutti.filter(p => p.destination === CONFIG.printerDestination)
-        : tutti;
-      if(items.length === 0){
-        log("Job #" + job.id + " (COMANDA) ignorato: nessun item per destinazione '" + CONFIG.printerDestination + "'.", "warn");
+      let gruppi;
+      if(CONFIG.printerDestination){
+        // Stampante dedicata a una sola destinazione: stampa solo quegli item, ticket unico.
+        const items = tutti.filter(p => p.destination === CONFIG.printerDestination);
+        gruppi = items.length ? [[CONFIG.printerDestination, items]] : [];
+      }else{
+        // Stampante unica per tutto: un ticket separato per ciascuna destinazione presente nell'ordine.
+        const map = new Map();
+        for(const p of tutti){
+          const dest = p.destination || "Generale";
+          if(!map.has(dest)) map.set(dest, []);
+          map.get(dest).push(p);
+        }
+        gruppi = Array.from(map.entries());
+      }
+
+      if(gruppi.length === 0){
+        log("Job #" + job.id + " (COMANDA) ignorato: nessun item da stampare.", "warn");
         return;
       }
-      lines = buildComandaReceipt(payload, items);
+
+      for(const [dest, items] of gruppi){
+        const lines = buildComandaReceipt(payload, items, dest);
+        const bytes = buildReceiptBytes(lines);
+        await writeToPrinter(bytes);
+        log("Job #" + job.id + " (COMANDA - " + dest + ") stampato.", "ok");
+        await new Promise(r => setTimeout(r, 300)); // pausa tra un ticket e l'altro
+      }
     }else if(payload.type === "PRECONTO"){
-      // Il preconto include sempre tutti gli articoli, indipendentemente dalla destinazione.
-      lines = buildPrecontoReceipt(payload, tutti);
+      // Il preconto è sempre un unico ticket con tutti gli articoli, mai diviso per destinazione.
+      const lines = buildPrecontoReceipt(payload, tutti);
+      const bytes = buildReceiptBytes(lines);
+      await writeToPrinter(bytes);
+      log("Job #" + job.id + " (PRECONTO) stampato.", "ok");
     }else{
       log("Job #" + job.id + " ignorato: tipo payload sconosciuto ('" + payload.type + "').", "warn");
       return;
     }
-
-    const bytes = buildReceiptBytes(lines);
-    await writeToPrinter(bytes);
-    log("Job #" + job.id + " (" + payload.type + ") stampato.", "ok");
 
     const { error } = await sbClient.from(CONFIG.table).update({ status: "stampato" }).eq("id", job.id);
     if(error) log("Stampato ma non aggiornato lo status su Supabase: " + error.message, "warn");

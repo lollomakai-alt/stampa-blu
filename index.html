@@ -1,142 +1,570 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lollo Stamp Bridge // CYBER</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
-    body { font-family: 'Share Tech Mono', monospace; background-color: #05050a; color: #00ffcc; }
-    .neon-box { border: 1px solid rgba(0, 255, 204, 0.3); box-shadow: 0 0 10px rgba(0, 255, 204, 0.1); }
-    .neon-glow { text-shadow: 0 0 8px rgba(0, 255, 204, 0.6); }
-    .neon-red { border-color: rgba(255, 0, 85, 0.4); box-shadow: 0 0 10px rgba(255, 0, 85, 0.15); color: #ff0055; text-shadow: 0 0 8px rgba(255, 0, 85, 0.6); }
-    .neon-green { border-color: rgba(0, 255, 100, 0.4); box-shadow: 0 0 10px rgba(0, 255, 100, 0.15); color: #00ff64; text-shadow: 0 0 8px rgba(0, 255, 100, 0.6); }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0f0b">
+<link rel="manifest" href="manifest.json">
+<title>LOLLO STAMP BRIDGE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    --bg:#0a0f0b;
+    --panel:#0f1712;
+    --line:#1c2b20;
+    --green:#39ff6a;
+    --green-dim:#1f7a3d;
+    --amber:#ffb000;
+    --red:#ff3b3b;
+    --text:#c9f2d4;
+    --text-dim:#5c7a68;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Share Tech Mono', monospace;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    padding:18px 12px 40px;
+    position:relative;
+    overflow-x:hidden;
+  }
+  /* CRT scanline overlay — signature element */
+  body::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    background:repeating-linear-gradient(
+      to bottom,
+      rgba(57,255,106,0.035) 0px,
+      rgba(57,255,106,0.035) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    z-index:50;
+    animation:flicker 6s infinite;
+  }
+  @keyframes flicker{
+    0%,96%,100%{opacity:1;}
+    97%{opacity:0.92;}
+    98%{opacity:1;}
+  }
+  .app{width:100%;max-width:460px;}
+
+  .title{
+    font-family:'VT323', monospace;
+    font-size:38px;
+    letter-spacing:2px;
+    text-align:center;
+    color:var(--green);
+    text-shadow:0 0 8px rgba(57,255,106,.55), 0 0 22px rgba(57,255,106,.25);
+    margin:4px 0 0;
+  }
+  .subtitle{
+    text-align:center;
+    font-size:11px;
+    letter-spacing:3px;
+    color:var(--text-dim);
+    margin:2px 0 18px;
+  }
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:14px 16px;
+    margin-bottom:12px;
+  }
+  .panel-title{
+    font-size:11px;
+    letter-spacing:2px;
+    color:var(--text-dim);
+    margin:0 0 10px;
+  }
+
+  .status-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:6px 0;
+    font-size:14px;
+    border-bottom:1px dashed var(--line);
+  }
+  .status-row:last-child{border-bottom:none;}
+  .status-val{display:flex;align-items:center;gap:8px;font-weight:bold;}
+  .led{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none;}
+  .led.on{background:var(--green);box-shadow:0 0 8px var(--green);}
+  .led.off{background:var(--red);box-shadow:0 0 8px var(--red);}
+  .led.wait{background:var(--amber);box-shadow:0 0 8px var(--amber);animation:blink 1s infinite;}
+  @keyframes blink{50%{opacity:.3;}}
+
+  button{
+    font-family:'Share Tech Mono', monospace;
+    font-size:14px;
+    letter-spacing:1px;
+    background:transparent;
+    border:1px solid var(--green-dim);
+    color:var(--green);
+    padding:12px 10px;
+    border-radius:3px;
+    width:100%;
+    cursor:pointer;
+    margin-top:8px;
+    transition:background .15s, box-shadow .15s;
+  }
+  button:hover{background:rgba(57,255,106,.08);box-shadow:0 0 10px rgba(57,255,106,.25) inset;}
+  button:active{background:rgba(57,255,106,.16);}
+  button:disabled{opacity:.35;cursor:not-allowed;}
+  button.primary{border-color:var(--amber);color:var(--amber);}
+  button.primary:hover{background:rgba(255,176,0,.08);}
+  button.stop{border-color:var(--red);color:var(--red);}
+  button.stop:hover{background:rgba(255,59,59,.08);}
+  .btn-row{display:flex;gap:8px;}
+  .btn-row button{margin-top:8px;}
+
+  label{
+    display:block;
+    font-size:11px;
+    color:var(--text-dim);
+    letter-spacing:1px;
+    margin:10px 0 4px;
+  }
+  input{
+    width:100%;
+    background:#080c09;
+    border:1px solid var(--line);
+    color:var(--text);
+    font-family:'Share Tech Mono', monospace;
+    font-size:13px;
+    padding:8px 9px;
+    border-radius:3px;
+  }
+  input:focus{outline:none;border-color:var(--green-dim);}
+
+  details summary{
+    cursor:pointer;
+    font-size:11px;
+    letter-spacing:2px;
+    color:var(--text-dim);
+    margin-bottom:4px;
+  }
+
+  .log-box{
+    background:#050805;
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:10px 12px;
+    height:220px;
+    overflow-y:auto;
+    font-size:12.5px;
+    line-height:1.55;
+  }
+  .log-line{white-space:pre-wrap;word-break:break-word;opacity:0;animation:fadein .25s forwards;}
+  @keyframes fadein{to{opacity:1;}}
+  .log-line .t{color:var(--text-dim);}
+  .log-line.info{color:var(--text);}
+  .log-line.ok{color:var(--green);}
+  .log-line.err{color:var(--red);}
+  .log-line.warn{color:var(--amber);}
+
+  .cursor{display:inline-block;width:8px;background:var(--green);animation:blink 1s steps(1) infinite;}
+
+  .footer{
+    text-align:center;
+    font-size:10.5px;
+    letter-spacing:2px;
+    color:var(--text-dim);
+    margin-top:18px;
+  }
+</style>
 </head>
-<body class="min-h-screen flex flex-col justify-between p-3 select-none">
+<body>
+<div class="app">
 
-  <!-- Header -->
-  <header class="text-center py-2 border-b border-cyan-500/30 mb-3">
-    <h1 class="text-lg font-bold tracking-widest uppercase neon-glow text-cyan-400">⚡ LOLLO STAMP BRIDGE ⚡</h1>
-    <div class="text-[10px] text-cyan-600 tracking-wider">ESC/POS BLUETOOTH // SUPABASE LINK</div>
-  </header>
+  <div class="title">⚡ LOLLO STAMP BRIDGE ⚡</div>
+  <div class="subtitle">ESC/POS BLUETOOTH // SUPABASE LINK</div>
 
-  <!-- Pannello Centrale Compatto -->
-  <main class="space-y-2.5 flex-1 flex flex-col justify-center">
-    
-    <!-- Stato Stampante -->
-    <div id="printerStatusBox" class="neon-red p-2.5 rounded-lg text-center text-xs font-bold uppercase tracking-wider bg-black/40">
-      [ STATO: STAMPANTE DISCONNESSA ]
+  <div class="panel">
+    <div class="panel-title">STATO</div>
+    <div class="status-row">
+      <span>STAMPANTE</span>
+      <span class="status-val"><span id="ledPrinter" class="led off"></span><span id="txtPrinter">DISCONNESSA</span></span>
     </div>
-
-    <!-- Stato Ascolto -->
-    <div id="listenerStatusBox" class="neon-box p-2.5 rounded-lg text-center text-xs font-bold uppercase tracking-wider text-yellow-400 bg-black/40" style="border-color: rgba(255, 204, 0, 0.4);">
-      [ ASCOLTO: IN ATTESA ]
+    <div class="status-row">
+      <span>ASCOLTO ORDINI</span>
+      <span class="status-val"><span id="ledListen" class="led off"></span><span id="txtListen">IN ATTESA</span></span>
     </div>
+  </div>
 
-    <!-- Griglia Pulsanti (Più piccoli e compatti) -->
-    <div class="grid grid-cols-2 gap-2 pt-1">
-      <button onclick="connectPrinter()" class="neon-box bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 text-xs font-bold py-2.5 px-3 rounded-lg transition active:scale-95">
-        🔗 ASSOCIA
-      </button>
-
-      <button onclick="testPrint()" class="neon-box bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 text-xs font-bold py-2.5 px-3 rounded-lg transition active:scale-95">
-        🖨️ TEST STAMPA
-      </button>
+  <div class="panel">
+    <div class="panel-title">CONTROLLI</div>
+    <button id="btnPair">🔗 ASSOCIA STAMPANTE</button>
+    <div class="btn-row">
+      <button id="btnTest" disabled>🖨️ TEST STAMPA</button>
     </div>
+    <button id="btnListen" class="primary" disabled>▶ AVVIA ASCOLTO ORDINI</button>
+  </div>
 
-    <button id="toggleListenerBtn" onclick="toggleListener()" class="w-full neon-green bg-emerald-950/40 hover:bg-emerald-900/50 text-xs font-bold py-3 px-4 rounded-lg transition active:scale-95 uppercase tracking-wider">
-      ▶ AVVIA ASCOLTO ORDINI
-    </button>
+  <div class="panel">
+    <details>
+      <summary>// CONFIG SUPABASE (modifica CONFIG nel file per uso reale)</summary>
+      <label for="inUrl">SUPABASE URL</label>
+      <input id="inUrl" placeholder="https://xxxx.supabase.co">
+      <label for="inKey">ANON KEY</label>
+      <input id="inKey" placeholder="eyJhbGciOi...">
+      <label for="inTable">TABELLA</label>
+      <input id="inTable" placeholder="print_jobs">
+      <label for="inTypes">TIPI DA STAMPARE (COMANDA,PRECONTO)</label>
+      <input id="inTypes" placeholder="COMANDA">
+      <label for="inDest">DESTINAZIONE (solo per COMANDA — Cucina/Bar/vuoto=tutto)</label>
+      <input id="inDest" placeholder="Cucina">
+      <button id="btnSaveCfg" style="margin-top:12px;">SALVA CONFIG (sessione corrente)</button>
+    </details>
+  </div>
 
-    <!-- Console di Sistema Cyberpunk -->
-    <div class="mt-2">
-      <div class="text-[10px] text-cyan-600 mb-1 tracking-widest uppercase">// SYSTEM_LOGS</div>
-      <div id="consoleLog" class="bg-black/90 neon-box text-cyan-400 font-mono text-[11px] p-2.5 rounded-lg h-36 overflow-y-auto space-y-1">
-        <div>> System initialized. Ready...</div>
-      </div>
-    </div>
+  <div class="panel">
+    <div class="panel-title">// SYSTEM_LOGS</div>
+    <div class="log-box" id="logBox"></div>
+  </div>
 
-  </main>
+  <div class="footer">SECURE BRIDGE v2.6 // 80MM ESC-POS</div>
+</div>
 
-  <!-- Footer Minimal -->
-  <footer class="text-center text-[9px] text-cyan-700/60 pt-2 border-t border-cyan-500/10">
-    SECURE BRIDGE v2.6 // 80MM ESC-POS
-  </footer>
+<script>
+/* ============================================================
+   CONFIG — per uso reale, sostituisci questi valori con i tuoi
+   e ospita il file su un dominio HTTPS (Web Bluetooth lo richiede,
+   tranne che su localhost). Puoi anche lasciarli vuoti e
+   compilare i campi nella sezione CONFIG SUPABASE qui sopra:
+   valgono solo per la sessione corrente (non salvati su disco).
+   ============================================================ */
+const CONFIG = {
+  supabaseUrl: "",
+  supabaseAnonKey: "",
+  table: "print_jobs",
+  // Quali tipi di payload questa istanza deve stampare: "COMANDA", "PRECONTO", o entrambi.
+  jobTypes: ["COMANDA"],
+  // Solo per i job di tipo COMANDA: se impostata, stampa solo gli item con questa destinazione
+  // (es. "Cucina" o "Bar"). Lascia vuota per stampare tutti gli item. Ignorata per i PRECONTO,
+  // che devono sempre includere tutti gli articoli del conto.
+  printerDestination: ""
+};
 
-  <!-- Script di Logica -->
-  <script>
-    const SUPABASE_URL = 'https://yyrawuynqukwszvotiuu.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b';
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+/* UUID di servizi BLE comuni usati dalle stampanti termiche
+   generiche (cinesi) da 80mm — proviamo tutti in scoperta generica */
+const PRINTER_SERVICE_UUIDS = [
+  "000018f0-0000-1000-8000-00805f9b34fb",
+  "49535343-fe7d-4ae5-8fa9-9fafd205e455",
+  "6e400001-b5a3-f393-e0a9-e50e24dcca9e",
+  "e7810a71-73ae-499d-8c15-faa9aef0c3f2",
+  "0000ffe0-0000-1000-8000-00805f9b34fb",
+  "0000ff00-0000-1000-8000-00805f9b34fb"
+];
 
-    let isListening = false;
-    let subscription = null;
+let bleDevice = null;
+let bleServer = null;
+let writeChar = null;
+let sbClient = null;
+let sbChannel = null;
+let isListening = false;
 
-    function addLog(message) {
-      const consoleBox = document.getElementById('consoleLog');
-      const time = new Date().toLocaleTimeString();
-      consoleBox.innerHTML += `<div><span class="text-cyan-600">[${time}]</span> ${message}</div>`;
-      consoleBox.scrollTop = consoleBox.scrollHeight;
-    }
+const $ = (id) => document.getElementById(id);
+const logBox = $("logBox");
 
-    function connectPrinter() {
-      addLog("Ricerca dispositivo Bluetooth ESC/POS...");
-      setTimeout(() => {
-        const box = document.getElementById('printerStatusBox');
-        box.className = "neon-green p-2.5 rounded-lg text-center text-xs font-bold uppercase tracking-wider bg-black/40";
-        box.innerText = "[ STATO: STAMPANTE CONNESSA ]";
-        addLog("Stampante 80mm collegata con successo.");
-      }, 1200);
-    }
+function log(msg, type="info"){
+  const line = document.createElement("div");
+  line.className = "log-line " + type;
+  const time = new Date().toLocaleTimeString("it-IT", {hour12:false});
+  line.innerHTML = `<span class="t">[${time}]</span> ${msg}`;
+  logBox.appendChild(line);
+  logBox.scrollTop = logBox.scrollHeight;
+}
 
-    function toggleListener() {
-      const btn = document.getElementById('toggleListenerBtn');
-      const box = document.getElementById('listenerStatusBox');
+function setPrinterStatus(state){
+  const led = $("ledPrinter"), txt = $("txtPrinter");
+  if(state === "on"){ led.className="led on"; txt.textContent="CONNESSA"; $("btnTest").disabled=false; $("btnListen").disabled=false; }
+  else if(state === "wait"){ led.className="led wait"; txt.textContent="ASSOCIAZIONE..."; }
+  else { led.className="led off"; txt.textContent="DISCONNESSA"; $("btnTest").disabled=true; $("btnListen").disabled=true; }
+}
 
-      if (!isListening) {
-        addLog("Aggancio al Realtime di Supabase...");
-        
-        subscription = supabase
-          .channel('public:reservations')
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reservations' }, (payload) => {
-            addLog(`Nuovo ordine: ${payload.new.client_name} [${payload.new.covers}p]`);
-            printReceipt(payload.new);
-          })
-          .subscribe((status) => {
-            if (status === 'SUBSCRIBED') {
-              addLog("Canale attivo in ascolto.");
-            }
-          });
+function setListenStatus(state){
+  const led = $("ledListen"), txt = $("txtListen");
+  if(state === "on"){ led.className="led on"; txt.textContent="ATTIVO"; }
+  else if(state === "wait"){ led.className="led wait"; txt.textContent="CONNESSIONE..."; }
+  else { led.className="led off"; txt.textContent="IN ATTESA"; }
+}
 
-        isListening = true;
-        btn.className = "w-full neon-red bg-rose-950/40 hover:bg-rose-900/50 text-xs font-bold py-3 px-4 rounded-lg transition active:scale-95 uppercase tracking-wider";
-        btn.innerText = "⏹ FERMA ASCOLTO ORDINI";
-        box.className = "neon-green p-2.5 rounded-lg text-center text-xs font-bold uppercase tracking-wider bg-black/40";
-        box.innerText = "[ ASCOLTO: ATTIVO (REALTIME) ]";
+log("System initialized. Ready...", "info");
 
-      } else {
-        addLog("Disconnessione canale in corso...");
-        supabase.removeChannel(subscription);
-        
-        isListening = false;
-        btn.className = "w-full neon-green bg-emerald-950/40 hover:bg-emerald-900/50 text-xs font-bold py-3 px-4 rounded-lg transition active:scale-95 uppercase tracking-wider";
-        btn.innerText = "▶ AVVIA ASCOLTO ORDINI";
-        box.className = "neon-box p-2.5 rounded-lg text-center text-xs font-bold uppercase tracking-wider text-yellow-400 bg-black/40";
-        box.style.borderColor = "rgba(255, 204, 0, 0.4)";
-        box.innerText = "[ ASCOLTO: IN ATTESA ]";
+/* ---------- BLUETOOTH ---------- */
+
+$("btnPair").addEventListener("click", async () => {
+  if(!navigator.bluetooth){
+    log("Web Bluetooth non disponibile in questo browser. Usa Chrome su Android.", "err");
+    return;
+  }
+  try{
+    setPrinterStatus("wait");
+    log("Ricerca dispositivi Bluetooth in corso...", "info");
+    bleDevice = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: PRINTER_SERVICE_UUIDS
+    });
+    log("Dispositivo selezionato: " + bleDevice.name, "info");
+    bleDevice.addEventListener("gattserverdisconnected", () => {
+      log("Stampante disconnessa.", "warn");
+      setPrinterStatus("off");
+      writeChar = null;
+    });
+
+    bleServer = await bleDevice.gatt.connect();
+    const services = await bleServer.getPrimaryServices();
+    log(`Trovati ${services.length} servizi, ricerca caratteristica scrivibile...`, "info");
+
+    writeChar = null;
+    for(const service of services){
+      const chars = await service.getCharacteristics();
+      for(const c of chars){
+        if(c.properties.write || c.properties.writeWithoutResponse){
+          writeChar = c;
+          break;
+        }
       }
+      if(writeChar) break;
     }
 
-    function testPrint() {
-      addLog("Invio pattern di test ESC/POS...");
-      setTimeout(() => {
-        addLog("Test completato. Taglio carta eseguito.");
-      }, 700);
+    if(!writeChar){
+      log("Nessuna caratteristica scrivibile trovata. La stampante potrebbe usare Bluetooth Classic (SPP) anziché BLE: in tal caso il browser non può collegarsi direttamente.", "err");
+      setPrinterStatus("off");
+      return;
     }
-  </script>
 
+    log("Stampante associata correttamente.", "ok");
+    setPrinterStatus("on");
+  }catch(err){
+    log("Associazione annullata o fallita: " + err.message, "err");
+    setPrinterStatus("off");
+  }
+});
+
+async function writeToPrinter(bytes){
+  if(!writeChar) throw new Error("Nessuna stampante collegata");
+  const CHUNK = 180; // limite MTU BLE prudente
+  for(let i=0; i<bytes.length; i+=CHUNK){
+    const slice = bytes.slice(i, i+CHUNK);
+    if(writeChar.properties.writeWithoutResponse){
+      await writeChar.writeValueWithoutResponse(slice);
+    }else{
+      await writeChar.writeValue(slice);
+    }
+    await new Promise(r => setTimeout(r, 20));
+  }
+}
+
+/* ---------- ESC/POS FORMATTING ---------- */
+
+// Sostituzione base per lettere accentate italiane (CP437/850 spesso non allineate a UTF-8)
+function asciiSafe(str){
+  const map = {"à":"a'","è":"e'","é":"e'","ì":"i'","ò":"o'","ù":"u'","À":"A'","È":"E'","Ì":"I'","Ò":"O'","Ù":"U'"};
+  return String(str).replace(/[àèéìòùÀÈÌÒÙ]/g, ch => map[ch] || ch);
+}
+
+function buildReceiptBytes(lines){
+  const enc = new TextEncoder();
+  const bytes = [];
+  const push = (arr) => bytes.push(...arr);
+
+  push([0x1B, 0x40]);          // ESC @  — inizializza stampante
+  push([0x1B, 0x61, 0x01]);    // ESC a 1 — centra testo per l'intestazione
+
+  for(const line of lines){
+    if(line.bold){ push([0x1B, 0x45, 0x01]); } // ESC E 1 — grassetto ON
+    if(line.center){ push([0x1B, 0x61, 0x01]); } else { push([0x1B, 0x61, 0x00]); }
+    push(Array.from(enc.encode(asciiSafe(line.text) + "\n")));
+    if(line.bold){ push([0x1B, 0x45, 0x00]); } // grassetto OFF
+  }
+
+  push(Array.from(enc.encode("\n\n\n")));
+  push([0x1D, 0x56, 0x42, 0x00]); // GS V B 0 — taglio carta (parziale)
+  return new Uint8Array(bytes);
+}
+
+$("btnTest").addEventListener("click", async () => {
+  try{
+    log("Invio stampa di test...", "info");
+    const bytes = buildReceiptBytes([
+      {text:"LOLLO STAMP BRIDGE", bold:true, center:true},
+      {text:"--------------------------------", center:true},
+      {text:"Test di stampa riuscito", center:true},
+      {text: new Date().toLocaleString("it-IT"), center:true},
+    ]);
+    await writeToPrinter(bytes);
+    log("Test di stampa inviato.", "ok");
+  }catch(err){
+    log("Errore stampa test: " + err.message, "err");
+  }
+});
+
+/* ---------- SUPABASE REALTIME ---------- */
+
+$("btnSaveCfg").addEventListener("click", () => {
+  CONFIG.supabaseUrl = $("inUrl").value.trim() || CONFIG.supabaseUrl;
+  CONFIG.supabaseAnonKey = $("inKey").value.trim() || CONFIG.supabaseAnonKey;
+  CONFIG.table = $("inTable").value.trim() || CONFIG.table;
+  CONFIG.printerDestination = $("inDest").value.trim(); // può essere svuotata volutamente
+  const typesRaw = $("inTypes").value.trim();
+  CONFIG.jobTypes = typesRaw
+    ? typesRaw.split(",").map(s => s.trim().toUpperCase()).filter(Boolean)
+    : CONFIG.jobTypes;
+  log("Configurazione aggiornata per la sessione corrente.", "ok");
+});
+
+function getTavolo(payload){
+  // Nome del campo non confermato: proviamo le varianti più probabili.
+  return payload.tavolo ?? payload.table ?? payload.tableName ?? "-";
+}
+
+function buildComandaReceipt(payload, items){
+  const lines = [
+    {text:"COMANDA", bold:true, center:true},
+    {text:"Tavolo " + getTavolo(payload), bold:true, center:true},
+    {text:"--------------------------------", center:true},
+  ];
+  for(const p of items){
+    lines.push({text: `${p.qty}x  ${p.name}`});
+  }
+  lines.push({text:"--------------------------------", center:true});
+  lines.push({text: new Date().toLocaleString("it-IT"), center:true});
+  return lines;
+}
+
+function buildPrecontoReceipt(payload, items){
+  const lines = [
+    {text:"PRECONTO", bold:true, center:true},
+    {text:"Tavolo " + getTavolo(payload), bold:true, center:true},
+    {text:"--------------------------------", center:true},
+  ];
+  let totale = 0;
+  for(const p of items){
+    const rigaTot = (p.qty ?? 1) * (p.price ?? 0);
+    totale += rigaTot;
+    lines.push({text: `${p.qty}x ${p.name}`.padEnd(24) + rigaTot.toFixed(2) + " EUR"});
+  }
+  lines.push({text:"--------------------------------", center:true});
+  lines.push({text: "TOTALE: " + totale.toFixed(2) + " EUR", bold:true});
+  lines.push({text:"Documento non fiscale", center:true});
+  lines.push({text: new Date().toLocaleString("it-IT"), center:true});
+  return lines;
+}
+
+async function printJob(job){
+  try{
+    const payload = job.payload || {};
+    const tutti = Array.isArray(payload.items) ? payload.items : [];
+    let lines;
+
+    if(payload.type === "COMANDA"){
+      const items = CONFIG.printerDestination
+        ? tutti.filter(p => p.destination === CONFIG.printerDestination)
+        : tutti;
+      if(items.length === 0){
+        log("Job #" + job.id + " (COMANDA) ignorato: nessun item per destinazione '" + CONFIG.printerDestination + "'.", "warn");
+        return;
+      }
+      lines = buildComandaReceipt(payload, items);
+    }else if(payload.type === "PRECONTO"){
+      // Il preconto include sempre tutti gli articoli, indipendentemente dalla destinazione.
+      lines = buildPrecontoReceipt(payload, tutti);
+    }else{
+      log("Job #" + job.id + " ignorato: tipo payload sconosciuto ('" + payload.type + "').", "warn");
+      return;
+    }
+
+    const bytes = buildReceiptBytes(lines);
+    await writeToPrinter(bytes);
+    log("Job #" + job.id + " (" + payload.type + ") stampato.", "ok");
+
+    const { error } = await sbClient.from(CONFIG.table).update({ status: "stampato" }).eq("id", job.id);
+    if(error) log("Stampato ma non aggiornato lo status su Supabase: " + error.message, "warn");
+  }catch(err){
+    log("Errore stampa job #" + job.id + ": " + err.message, "err");
+  }
+}
+
+$("btnListen").addEventListener("click", async () => {
+  if(isListening){
+    if(sbChannel) await sbChannel.unsubscribe();
+    isListening = false;
+    setListenStatus("off");
+    $("btnListen").textContent = "▶ AVVIA ASCOLTO ORDINI";
+    $("btnListen").classList.remove("stop");
+    $("btnListen").classList.add("primary");
+    log("Ascolto ordini fermato.", "warn");
+    return;
+  }
+
+  if(!CONFIG.supabaseUrl || !CONFIG.supabaseAnonKey){
+    log("Configura prima URL e ANON KEY di Supabase.", "err");
+    return;
+  }
+
+  try{
+    setListenStatus("wait");
+    if(!sbClient){
+      sbClient = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey);
+    }
+    sbChannel = sbClient
+      .channel("lollo-bridge-orders")
+      .on("postgres_changes",
+        { event: "INSERT", schema: "public", table: CONFIG.table, filter: "status=eq.nuovo" },
+        (payload) => {
+          const job = payload.new;
+          if(!CONFIG.jobTypes.includes((job.payload || {}).type)) return;
+          log("Nuovo job ricevuto (#" + job.id + ", " + job.payload.type + ").", "info");
+          printJob(job);
+        }
+      )
+      .on("postgres_changes",
+        // copre il caso in cui un job venga riportato a 'nuovo' (es. richiesta di ristampa)
+        { event: "UPDATE", schema: "public", table: CONFIG.table, filter: "status=eq.nuovo" },
+        (payload) => {
+          const job = payload.new;
+          if(!CONFIG.jobTypes.includes((job.payload || {}).type)) return;
+          log("Job riattivato per la stampa (#" + job.id + ", " + job.payload.type + ").", "info");
+          printJob(job);
+        }
+      )
+      .subscribe((status) => {
+        if(status === "SUBSCRIBED"){
+          isListening = true;
+          setListenStatus("on");
+          $("btnListen").textContent = "⏸ FERMA ASCOLTO";
+          $("btnListen").classList.remove("primary");
+          $("btnListen").classList.add("stop");
+          log("In ascolto sulla tabella '" + CONFIG.table + "'.", "ok");
+        }else if(status === "CHANNEL_ERROR" || status === "TIMED_OUT"){
+          setListenStatus("off");
+          log("Errore di connessione realtime: " + status, "err");
+        }
+      });
+  }catch(err){
+    setListenStatus("off");
+    log("Errore avvio ascolto: " + err.message, "err");
+  }
+});
+
+/* ---------- SERVICE WORKER (installabilità PWA) ---------- */
+if("serviceWorker" in navigator){
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(err => log("Service worker non registrato: " + err.message, "warn"));
+  });
+}
+</script>
 </body>
 </html>

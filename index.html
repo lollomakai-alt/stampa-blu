@@ -1,514 +1,264 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lollo-Stamp Bridge 80mm Pro</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<style>
-body {
-    background-color: #0a0e17;
-    color: #ffffff;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    margin: 0;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-.container {
-    width: 100%;
-    max-width: 400px;
-}
-.header {
-    text-align: center;
-    margin-bottom: 20px;
-    border-bottom: 1px solid #1F2937;
-    padding-bottom: 15px;
-}
-.headerTitle {
-    font-size: 22px;
-    font-weight: bold;
-    color: #39FF14;
-    letter-spacing: 2px;
-}
-.card {
-    background-color: #111827;
-    border: 1px solid #1F2937;
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 15px;
-}
-.cardLabel {
-    font-size: 11px;
-    color: #9CA3AF;
-    margin-bottom: 10px;
-    letter-spacing: 1px;
-    font-weight: bold;
-}
-.actionButton {
-    background-color: #1E3A8A;
-    border: 1px solid #3B82F6;
-    color: #FFFFFF;
-    padding: 15px;
-    border-radius: 12px;
-    width: 100%;
-    font-weight: bold;
-    font-size: 14px;
-    cursor: pointer;
-    text-align: center;
-    transition: background-color 0.2s;
-}
-.actionButton:hover {
-    background-color: #1D4ED8;
-}
-.logBox {
-    background-color: #030712;
-    border: 1px solid #1F2937;
-    border-radius: 8px;
-    padding: 10px;
-    font-family: monospace;
-    font-size: 11px;
-    color: #39FF14;
-    height: 140px;
-    overflow-y: auto;
-}
-.status-badge {
-    text-align: center;
-    padding: 10px;
-    border-radius: 8px;
-    background: #030712;
-    border: 1px solid #FACC15;
-    color: #FACC15;
-    font-weight: bold;
-    margin-bottom: 10px;
-}
-.connected {
-    border-color: #39FF14 !important;
-    color: #39FF14 !important;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LOLLO-STAMP 80MM PRO BRIDGE</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --success: #16a34a;
+            --danger: #dc2626;
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        header {
+            text-align: center;
+            border-bottom: 2px solid #334155;
+            padding-bottom: 15px;
+        }
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: #60a5fa;
+            letter-spacing: 1px;
+        }
+        .subtitle {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-top: 5px;
+        }
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .status-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+        }
+        .indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: var(--danger);
+            box-shadow: 0 0 8px var(--danger);
+            transition: all 0.3s ease;
+        }
+        .indicator.connected {
+            background-color: var(--success);
+            box-shadow: 0 0 8px var(--success);
+        }
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            text-align: center;
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+        .btn:active {
+            transform: scale(0.98);
+        }
+        .btn-success {
+            background-color: var(--success);
+        }
+        .console-container {
+            background-color: #020617;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.85rem;
+            height: 200px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .log-entry {
+            word-break: break-all;
+        }
+        .log-sys { color: #38bdf8; }
+        .log-ok { color: #4ade80; }
+        .log-err { color: #f87171; }
+    </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="header">
-        <div class="headerTitle">LOLLO-STAMP</div>
-        <div style="font-size: 11px; color: #9CA3AF; margin-top: 4px;">80MM PRO BRIDGE</div>
+    <div class="container">
+        <header>
+            <h1>LOLLO-STAMP</h1>
+            <div class="subtitle">80MM PRO BRIDGE</div>
+        </header>
+
+        <div class="card">
+            <div class="status-box">
+                <div id="btIndicator" class="indicator"></div>
+                <span id="btStatusText">In attesa di associazione Bluetooth...</span>
+            </div>
+            
+            <button id="btnConnect" class="btn">Associa Stampante Termica</button>
+            <button id="btnTest" class="btn btn-success" style="display: none;">Stampa Test 80mm</button>
+        </div>
+
+        <div class="card">
+            <h3 style="margin: 0; font-size: 1rem; color: var(--text-muted);">CONSOLE LOG IN TEMPO REALE</h3>
+            <div id="consoleLog" class="console-container">
+                <div class="log-entry log-sys">[SYSTEM] Interfaccia 80mm avviata. Clicca su associa stampante.</div>
+            </div>
+        </div>
     </div>
-    
-    <div class="card">
-        <div class="cardLabel">CONNESSIONE STAMPANTE BLUETOOTH</div>
-        <div id="statusBadge" class="status-badge">In attesa di associazione Bluetooth...</div>
-        <button class="actionButton" onclick="connettiStampante()">Associa Stampante Termica</button>
-    </div>
-    
-    <div class="card">
-        <div class="cardLabel">CONSOLE LOG IN TEMPO REALE</div>
-        <div id="logBox" class="logBox">[SYSTEM] Interfaccia 80mm avviata. Clicca su associa stampante.</div>
-    </div>
-</div>
 
-<script>
-// --- CONFIGURAZIONE SUPABASE ---
-const SUPABASE_URL = 'https://yyrawuynqukwszvotiuu.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b';
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    <script>
+        const btnConnect = document.getElementById('btnConnect');
+        const btnTest = document.getElementById('btnTest');
+        const btIndicator = document.getElementById('btIndicator');
+        const btStatusText = document.getElementById('btStatusText');
+        const consoleLog = document.getElementById('consoleLog');
 
-let myPrinterDevice = null;
-let bluetoothCharacteristic = null;
-let isProcessingQueue = false;
+        let bluetoothDevice = null;
+        let bluetoothCharacteristic = null;
 
-// Larghezza massima standard per stampanti 80mm (caratteri font normale)
-const LINE_WIDTH_80MM = 42; 
+        function log(message, type = 'sys') {
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = `log-entry log-${type}`;
+            div.textContent = `[${timestamp}] ${message}`;
+            consoleLog.appendChild(div);
+            consoleLog.scrollTop = consoleLog.scrollHeight;
+        }
 
-function addLog(msg) {
-    const logBox = document.getElementById('logBox');
-    if (logBox) {
-        logBox.innerHTML += `<br>[${new Date().toLocaleTimeString()}] ${msg}`;
-        logBox.scrollTop = logBox.scrollHeight;
-    }
-}
-
-// 1. Gestione Disconnessione Bluetooth
-function onDisconnected(event) {
-    addLog("ATTENZIONE: Stampante Bluetooth disconnessa.");
-    const badge = document.getElementById('statusBadge');
-    badge.innerText = "Stampante disconnessa (Riconnessione...)";
-    badge.classList.remove('connected');
-    bluetoothCharacteristic = null;
-    
-    // Tentativo di riconnessione automatica al dispositivo salvato se possibile
-    if (myPrinterDevice && myPrinterDevice.gatt) {
-        setTimeout(async () => {
+        btnConnect.addEventListener('click', async () => {
             try {
-                addLog("Tentativo di riconnessione automatica GATT...");
-                const server = await myPrinterDevice.gatt.connect();
-                await setupCharacteristics(server);
-            } catch (err) {
-                addLog(`Riconnessione automatica fallita: ${err.message}. Clicca su associa.`);
-                badge.innerText = "Disconnesso. Associa manualmente.";
-            }
-        }, 4000);
-    }
-}
+                log('Ricerca dispositivi Bluetooth in corso...', 'sys');
+                
+                bluetoothDevice = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb', '49535343-fe7d-4ae5-8fa9-9fafd205e455', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2']
+                });
 
-async function setupCharacteristics(server) {
-    addLog("Connessione GATT stabilita. Cerco il servizio di stampa...");
-    const services = await server.getPrimaryServices();
-    for (const service of services) {
-        try {
-            const characteristics = await service.getCharacteristics();
-            for (const char of characteristics) {
-                if (char.properties.write || char.properties.writeWithoutResponse) {
-                    bluetoothCharacteristic = char;
-                    break;
+                log(`Dispositivo selezionato: ${bluetoothDevice.name || 'Senza nome'}`, 'sys');
+                
+                bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+                const server = await bluetoothDevice.gatt.connect();
+                log('Connesso al server GATT', 'ok');
+
+                // Ricerca servizi e caratteristiche standard per stampanti termiche ESC/POS
+                const services = await server.getPrimaryServices();
+                let found = false;
+
+                for (const service of services) {
+                    const characteristics = await service.getCharacteristics();
+                    for (const char of characteristics) {
+                        if (char.properties.write || char.properties.writeWithoutResponse) {
+                            bluetoothCharacteristic = char;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found) break;
                 }
+
+                if (!bluetoothCharacteristic) {
+                    throw new Error('Nessuna caratteristica di scrittura compatibile trovata.');
+                }
+
+                // Aggiornamento UI connessione riuscita
+                btIndicator.classList.add('connected');
+                btStatusText.textContent = `Connesso: ${bluetoothDevice.name || 'Stampante Termica'}`;
+                btnConnect.textContent = 'Disconnetti';
+                btnConnect.style.backgroundColor = '#dc2626';
+                btnTest.style.display = 'block';
+                log('Stampante termica pronta all\'uso (80mm).', 'ok');
+
+            } catch (error) {
+                log(`Errore Bluetooth: ${error.message}`, 'err');
+                resetConnectionUI();
             }
-        } catch (e) {
-            console.warn("Servizio ignorato", e);
-        }
-        if (bluetoothCharacteristic) break;
-    }
-
-    if (!bluetoothCharacteristic) {
-        throw new Error("Nessuna caratteristica di scrittura compatibile trovata.");
-    }
-
-    document.getElementById('statusBadge').innerText = `Connesso a: ${myPrinterDevice.name || 'Stampante'}`;
-    document.getElementById('statusBadge').classList.add('connected');
-    addLog("Stampante pronta e configurata con successo!");
-
-    processPendingJobs();
-}
-
-// 2. Connessione Bluetooth Manuale
-async function connettiStampante() {
-    if (!navigator.bluetooth) {
-        alert("Il Bluetooth non è supportato da questo browser. Usa Google Chrome su Android o Desktop.");
-        addLog("ERRORE: Bluetooth Web API non supportata.");
-        return;
-    }
-
-    try {
-        addLog("Apertura ricerca dispositivi Bluetooth...");
-        myPrinterDevice = await navigator.bluetooth.requestDevice({
-            acceptAllDevices: true,
-            optionalServices: [
-                '000018f0-0000-1000-8000-00805f9b34fb',
-                '49535343-fe7d-4ae5-8fa9-9fafd205e455',
-                'e7810a71-73ae-499d-8c15-faa9aef0c3f2'
-            ]
         });
 
-        // Rimuoviamo eventuali listener precedenti per evitare duplicati
-        myPrinterDevice.removeEventListener('gattserverdisconnected', onDisconnected);
-        myPrinterDevice.addEventListener('gattserverdisconnected', onDisconnected);
+        function onDisconnected() {
+            log('Dispositivo disconnesso.', 'err');
+            resetConnectionUI();
+        }
 
-        addLog(`Dispositivo selezionato: ${myPrinterDevice.name || 'Sconosciuto'}`);
+        function resetConnectionUI() {
+            btIndicator.classList.remove('connected');
+            btStatusText.textContent = 'In attesa di associazione Bluetooth...';
+            btnConnect.textContent = 'Associa Stampante Termica';
+            btnConnect.style.backgroundColor = '';
+            btnTest.style.display = 'none';
+            bluetoothDevice = null;
+            bluetoothCharacteristic = null;
+        }
 
-        const server = await myPrinterDevice.gatt.connect();
-        addLog("Connessione GATT stabilita. Cerco il servizio di stampa...");
+        btnTest.addEventListener('click', async () => {
+            if (!bluetoothCharacteristic) {
+                log('Errore: Stampante non connessa.', 'err');
+                return;
+            }
 
-        const services = await server.getPrimaryServices();
-        for (const service of services) {
             try {
-                const characteristics = await service.getCharacteristics();
-                for (const char of characteristics) {
-                    if (char.properties.write || char.properties.writeWithoutResponse) {
-                        bluetoothCharacteristic = char;
-                        break;
-                    }
-                }
-            } catch (e) {
-                console.warn("Servizio ignorato", e);
-            }
-            if (bluetoothCharacteristic) break;
-        }
-
-        if (!bluetoothCharacteristic) {
-            throw new Error("Nessuna caratteristica di scrittura compatibile trovata.");
-        }
-
-        document.getElementById('statusBadge').innerText = `Connesso a: ${myPrinterDevice.name}`;
-        document.getElementById('statusBadge').classList.add('connected');
-        addLog("Stampante 80mm pronta e configurata!");
-
-        processPendingJobs();
-
-    } catch (error) {
-        console.error(error);
-        addLog(`Errore/Annullato: ${error.message}`);
-    }
-}
-
-// 3. Lettura impostazioni dinamiche da Supabase
-async function getDatiImpostazioni() {
-    const { data, error } = await supabaseClient.from('settings').select('*');
-    let config = {
-        nome_locale: "NAKAI TIKI BAR",
-        indirizzo_locale: "Via dei Tiki, 1 - Roma",
-        piva_locale: "P.IVA: 01234567890"
-    };
-
-    if (data && !error) {
-        data.forEach(row => {
-            const k = row.key || row.chiave;
-            const v = row.value || row.valore;
-
-            if (k === 'nome_locale' || k === 'nome') config.nome_locale = v;
-            if (k === 'indirizzo_locale' || k === 'indirizzo') config.indirizzo_locale = v;
-            if (k === 'piva_locale' || k === 'piva') config.piva_locale = v;
-        });
-    }
-    return config;
-}
-
-// Utility per formattare righe con testo a sinistra e prezzo a destra (ottimizzato 80mm)
-function formatLine(leftText, rightText) {
-    const maxLen = LINE_WIDTH_80MM;
-    if (rightText.length >= maxLen) return leftText + "\n" + rightText;
-    const spaces = maxLen - leftText.length - rightText.length;
-    return leftText + " ".repeat(Math.max(1, spaces)) + rightText + "\n";
-}
-
-// 3. Funzione di stampa professionale 80mm
-async function sendToPrinter(payloadData) {
-    if (!myPrinterDevice || !myPrinterDevice.gatt.connected || !bluetoothCharacteristic) {
-        throw new Error("Stampante Bluetooth disconnessa.");
-    }
-
-    const ESC = '\x1B';
-    const GS = '\x1D';
-    const INIT = ESC + '@';
-    const ALIGN_CENTER = ESC + 'a' + '\x01';
-    const ALIGN_LEFT = ESC + 'a' + '\x00';
-    
-    // Spaziatura di alimentazione e taglio pulito per evitare che il testo resti sotto la testina
-    const FEED_PAPER = '\n'.repeat(4); 
-    const CUT = GS + 'V' + '\x41' + '\x03'; 
-
-    let textToPrint = INIT;
-    const settings = await getDatiImpostazioni();
-    const tipoDoc = (payloadData.type || payloadData.tipo || 'comanda').toLowerCase();
-    const separatore = "------------------------------------------\n";
-    const separatoreDoppio = "==========================================\n";
-
-    if (tipoDoc === 'conto' || tipoDoc === 'preconto') {
-        const nomeLocale = payloadData.nome_locale || settings.nome_locale;
-        const indirizzoLocale = payloadData.indirizzo_locale || settings.indirizzo_locale;
-        const pivaLocale = payloadData.piva_locale || settings.piva_locale;
-        const operatore = payloadData.operatore || payloadData.cameriere || "Sala";
-        const idOrdine = payloadData.id_ordine || payloadData.ordine_id || "N/D";
-
-        textToPrint += ALIGN_CENTER;
-        textToPrint += GS + '!' + '\x01' + `${nomeLocale}\n` + GS + '!' + '\x00';
-        textToPrint += `${indirizzoLocale}\n`;
-        textToPrint += `${pivaLocale}\n`;
-        textToPrint += separatoreDoppio;
-        textToPrint += `*** DOCUMENTO NON FISCALE ***\n`;
-        textToPrint += `PRECONTO / CONTO TAVOLO\n`;
-        textToPrint += separatoreDoppio;
-
-        const tavolo = payloadData.tavolo || payloadData.table || "N/D";
-        const coperti = payloadData.coperti ? `Coperti: ${payloadData.coperti}` : 'Coperti: 1';
-        
-        textToPrint += ALIGN_LEFT;
-        textToPrint += `TAVOLO: ${tavolo} | ${coperti}\n`;
-        textToPrint += `CONTO N: #${idOrdine} | OPERATORE: ${operatore}\n`;
-        textToPrint += `DATA: ${new Date().toLocaleDateString()} - ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n`;
-        textToPrint += separatore;
-        textToPrint += `ARTICOLI ORDINATI:\n`;
-        textToPrint += separatore;
-
-        let totaleCalcolato = 0;
-
-        if (payloadData.items && Array.isArray(payloadData.items)) {
-            payloadData.items.forEach(item => {
-                const qty = item.qty || 1;
-                const name = item.name || item.nome || 'Articolo';
-                const prezzoUnitario = item.prezzo || item.price || 0;
-                const subtotal = qty * prezzoUnitario;
-                totaleCalcolato += subtotal;
-
-                const rigaArticolo = `${qty}x ${name}`;
-                const rigaPrezzo = prezzoUnitario > 0 ? `EUR ${subtotal.toFixed(2)}` : '';
+                log('Invio scontrino di test (80mm)...', 'sys');
                 
-                textToPrint += formatLine(rigaArticolo, rigaPrezzo);
+                // Comandi ESC/POS di base (Inizializzazione, Allineamento Centro, Testo, Taglio)
+                const encoder = new TextEncoder();
+                const commands = new Uint8Array([
+                    0x1B, 0x40, // Inizializza stampante
+                    0x1B, 0x61, 0x01, // Allineamento Centrato
+                    0x1B, 0x21, 0x30, // Doppia altezza e larghezza
+                    ...encoder.encode('LOLLO-STAMP\n'),
+                    0x1B, 0x21, 0x00, // Reset font
+                    ...encoder.encode('80MM PRO BRIDGE\n'),
+                    '--------------------------------\n',
+                    0x1B, 0x61, 0x00, // Allineamento Sinistra
+                    ...encoder.encode('Stato: CONNESSO OK\n'),
+                    ...encoder.encode(`Data: ${new Date().toLocaleString()}\n`),
+                    '--------------------------------\n',
+                    ...encoder.encode('Test completato con successo!\n\n\n\n'),
+                    0x1D, 0x56, 0x41, 0x03 // Taglio carta
+                ]);
 
-                if (item.note || item.varianti) {
-                    textToPrint += `   -> Note: ${item.note || item.varianti}\n`;
-                }
-            });
-        }
+                await bluetoothCharacteristic.writeValue(commands);
+                log('Strip di test inviata con successo!', 'ok');
 
-        textToPrint += separatoreDoppio;
-        const totaleFinale = payloadData.totale || payloadData.total || totaleCalcolato;
-        
-        textToPrint += ALIGN_CENTER + GS + '!' + '\x01';
-        textToPrint += `TOTALE: EUR ${Number(totaleFinale).toFixed(2)}\n`;
-        textToPrint += GS + '!' + '\x00';
-        textToPrint += separatoreDoppio;
-        textToPrint += `Grazie per aver scelto il nostro locale!\n`;
-        textToPrint += `Il personale vi augura una buona serata\n`;
-        textToPrint += FEED_PAPER + CUT;
-
-    } else {
-        // --- COMANDA CUCINA / BAR 80mm ---
-        const tipoComanda = (payloadData.type || 'COMANDA').toUpperCase();
-        const nomeTavolo = payloadData.table || payloadData.tavolo || 'Tavolo';
-        const numCoperti = payloadData.coperti || payloadData.seats || '-';
-        const now = new Date();
-
-        const generaPaginaComanda = (articoliSlice, numeroPagina, totalePagine) => {
-            let paginaStr = ALIGN_CENTER + GS + '!' + '\x11'; // Carattere grande in evidenza per cucina
-            paginaStr += `*** ${tipoComanda} ***\n`;
-            if (totalePagine > 1) {
-                paginaStr += GS + '!' + '\x00' + `(Pag. ${numeroPagina} di ${totalePagine})\n`;
-                paginaStr += GS + '!' + '\x11';
+            } catch (error) {
+                log(`Errore durante la stampa: ${error.message}`, 'err');
             }
-            paginaStr += `\nTAVOLO: ${nomeTavolo}\n`;
-            paginaStr += GS + '!' + '\x00'; // Ritorno a font normale
-            paginaStr += separatore;
-            paginaStr += `COPERTI: ${numCoperti} | ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n`;
-            paginaStr += separatoreDoppio + '\n';
-
-            articoliSlice.forEach(item => {
-                const qty = item.qty || 1;
-                const name = (item.name || item.nome || 'Generico').toUpperCase();
-                const nota = item.note || item.varianti ? item.note || item.varianti : '';
-
-                paginaStr += ALIGN_LEFT + GS + '!' + '\x01'; // Evidenziato medio
-                paginaStr += `[ ${qty} ]  ${name}\n`;
-                paginaStr += GS + '!' + '\x00'; // Font normale
-                
-                if (nota) {
-                    paginaStr += `     NOTE: >> ${nota.toUpperCase()} <<\n`;
-                }
-                paginaStr += separatore;
-            });
-
-            paginaStr += `\n[ FINE COMANDA ]\n`;
-            paginaStr += FEED_PAPER + CUT;
-            return paginaStr;
-        };
-
-        if (payloadData.items && Array.isArray(payloadData.items) && payloadData.items.length > 0) {
-            const CHUNK_LIMIT = 6; // Ottimizzato per fogli da 80mm
-            const items = payloadData.items;
-            const totalePagine = Math.ceil(items.length / CHUNK_LIMIT);
-
-            for (let p = 0; p < totalePagine; p++) {
-                const sliceArticoli = items.slice(p * CHUNK_LIMIT, (p + 1) * CHUNK_LIMIT);
-                textToPrint += generaPaginaComanda(sliceArticoli, p + 1, totalePagine);
-            }
-        } else {
-            textToPrint += ALIGN_CENTER + GS + '!' + '\x11';
-            textToPrint += `*** ${tipoComanda} ***\n\nTAVOLO: ${nomeTavolo}\n`;
-            textToPrint += GS + '!' + '\x00';
-            textToPrint += separatore;
-            textToPrint += `Nessun articolo specificato\n`;
-            textToPrint += separatoreDoppio;
-            textToPrint += FEED_PAPER + CUT;
-        }
-    }
-
-    const encoder = new TextEncoder();
-    const data = encoder.encode(textToPrint);
-
-    // CHUNK_SIZE ridotto a 128 byte per maggiore stabilità su stampanti termiche economiche BLE
-    const CHUNK_SIZE = 128;
-    for (let i = 0; i < data.length; i += CHUNK_SIZE) {
-        const chunk = data.slice(i, i + CHUNK_SIZE);
-        if (bluetoothCharacteristic.properties.writeWithoutResponse) {
-            await bluetoothCharacteristic.writeValueWithoutResponse(chunk);
-        } else {
-            await bluetoothCharacteristic.writeValue(chunk);
-        }
-        // Breve pausa per evitare il sovraccarico del buffer della stampante
-        await new Promise(resolve => setTimeout(resolve, 20));
-    }
-}
-
-// 5. Elaborazione della coda protetta da lock (evita esecuzioni multiple concorrenti)
-async function processPendingJobs() {
-    if (isProcessingQueue) return;
-    if (!myPrinterDevice || !myPrinterDevice.gatt || !myPrinterDevice.gatt.connected) {
-        return;
-    }
-
-    isProcessingQueue = true;
-
-    try {
-        const { data: pendingJobs, error } = await supabaseClient
-            .from('print_jobs')
-            .select('*')
-            .eq('status', 'nuovo')
-            .order('id', { ascending: true });
-
-        if (error) {
-            addLog(`Errore lettura DB: ${error.message}`);
-            isProcessingQueue = false;
-            return;
-        }
-
-        if (pendingJobs && pendingJobs.length > 0) {
-            addLog(`Trovati ${pendingJobs.length} ordini da stampare.`);
-
-            for (const job of pendingJobs) {
-                try {
-                    addLog(`Invio in stampa ordine ID: ${job.id}...`);
-                    await sendToPrinter(job.payload);
-
-                    const { error: updateError } = await supabaseClient
-                        .from('print_jobs')
-                        .update({ status: 'stampato' })
-                        .eq('id', job.id);
-
-                    if (updateError) {
-                        addLog(`Errore aggiornamento stato ID ${job.id}: ${updateError.message}`);
-                        break;
-                    } else {
-                        addLog(`Ordine ID ${job.id} stampato e aggiornato con successo!`);
-                    }
-                } catch (err) {
-                    addLog(`Errore di stampa su ID ${job.id}: ${err.message}. Interrompo la coda.`);
-                    break;
-                }
-            }
-        }
-    } catch (e) {
-        console.error(e);
-    } finally {
-        isProcessingQueue = false;
-    }
-}
-
-// 6. Ascolto in tempo reale e polling di sicurezza
-if (supabaseClient) {
-    supabaseClient
-        .channel('public:print_jobs')
-        .on('postgres_changes', {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'print_jobs'
-        }, async (payload) => {
-            if (payload.new && payload.new.status === 'nuovo') {
-                addLog(`Nuovo ordine ricevuto in tempo reale! ID: ${payload.new.id}`);
-                await processPendingJobs();
-            }
-        })
-        .subscribe((status) => {
-            addLog(`Canale Realtime Supabase: ${status}`);
         });
-}
-
-setInterval(() => {
-    if (myPrinterDevice && myPrinterDevice.gatt && myPrinterDevice.gatt.connected) {
-        processPendingJobs();
-    }
-}, 30000);
-</script>
-
+    </script>
 </body>
 </html>

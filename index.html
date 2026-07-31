@@ -3,60 +3,71 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lollo Stamp Bridge</title>
-  <!-- Tailwind CSS per uno stile moderno e responsive da app mobile -->
+  <title>Lollo Stamp Bridge // CYBER</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+    body { font-family: 'Share Tech Mono', monospace; background-color: #05050a; color: #00ffcc; }
+    .neon-box { border: 1px solid rgba(0, 255, 204, 0.3); box-shadow: 0 0 10px rgba(0, 255, 204, 0.1); }
+    .neon-glow { text-shadow: 0 0 8px rgba(0, 255, 204, 0.6); }
+    .neon-red { border-color: rgba(255, 0, 85, 0.4); box-shadow: 0 0 10px rgba(255, 0, 85, 0.15); color: #ff0055; text-shadow: 0 0 8px rgba(255, 0, 85, 0.6); }
+    .neon-green { border-color: rgba(0, 255, 100, 0.4); box-shadow: 0 0 10px rgba(0, 255, 100, 0.15); color: #00ff64; text-shadow: 0 0 8px rgba(0, 255, 100, 0.6); }
+  </style>
 </head>
-<body class="bg-gray-100 text-gray-800 flex flex-col h-screen justify-between">
+<body class="min-h-screen flex flex-col justify-between p-3 select-none">
 
   <!-- Header -->
-  <header class="bg-blue-600 text-white p-4 text-center font-bold text-lg shadow-md">
-    Lollo Stamp Bridge
+  <header class="text-center py-2 border-b border-cyan-500/30 mb-3">
+    <h1 class="text-lg font-bold tracking-widest uppercase neon-glow text-cyan-400">⚡ LOLLO STAMP BRIDGE ⚡</h1>
+    <div class="text-[10px] text-cyan-600 tracking-wider">ESC/POS BLUETOOTH // SUPABASE LINK</div>
   </header>
 
-  <!-- Contenuto Principale -->
-  <main class="flex-1 p-4 overflow-y-auto space-y-4">
+  <!-- Pannello Centrale Compatto -->
+  <main class="space-y-2.5 flex-1 flex flex-col justify-center">
     
     <!-- Stato Stampante -->
-    <div id="printerStatusBox" class="p-4 rounded-xl font-bold text-center bg-red-100 text-red-700 shadow-sm">
-      Stampante non connessa
+    <div id="printerStatusBox" class="neon-red p-2.5 rounded-lg text-center text-xs font-bold uppercase tracking-wider bg-black/40">
+      [ STATO: STAMPANTE DISCONNESSA ]
     </div>
 
     <!-- Stato Ascolto -->
-    <div id="listenerStatusBox" class="p-4 rounded-xl font-bold text-center bg-amber-100 text-amber-700 shadow-sm">
-      Ascolto ordini non attivo
+    <div id="listenerStatusBox" class="neon-box p-2.5 rounded-lg text-center text-xs font-bold uppercase tracking-wider text-yellow-400 bg-black/40" style="border-color: rgba(255, 204, 0, 0.4);">
+      [ ASCOLTO: IN ATTESA ]
     </div>
 
-    <!-- Pulsanti di controllo -->
-    <div class="space-y-3">
-      <button onclick="connectPrinter()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold p-4 rounded-xl shadow transition">
-        Associa Stampante
+    <!-- Griglia Pulsanti (Più piccoli e compatti) -->
+    <div class="grid grid-cols-2 gap-2 pt-1">
+      <button onclick="connectPrinter()" class="neon-box bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 text-xs font-bold py-2.5 px-3 rounded-lg transition active:scale-95">
+        🔗 ASSOCIA
       </button>
 
-      <button id="toggleListenerBtn" onclick="toggleListener()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold p-4 rounded-xl shadow transition">
-        Avvia Ascolto Ordini
-      </button>
-
-      <button onclick="testPrint()" class="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold p-4 rounded-xl shadow transition">
-        Stampa di Prova
+      <button onclick="testPrint()" class="neon-box bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 text-xs font-bold py-2.5 px-3 rounded-lg transition active:scale-95">
+        🖨️ TEST STAMPA
       </button>
     </div>
 
-    <!-- Console di Sistema -->
-    <div class="mt-4">
-      <h3 class="text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Console di Sistema</h3>
-      <div id="consoleLog" class="bg-black text-green-400 font-mono text-xs p-3 rounded-xl h-40 overflow-y-auto shadow-inner space-y-1">
-        <div>> Sistema pronto.</div>
+    <button id="toggleListenerBtn" onclick="toggleListener()" class="w-full neon-green bg-emerald-950/40 hover:bg-emerald-900/50 text-xs font-bold py-3 px-4 rounded-lg transition active:scale-95 uppercase tracking-wider">
+      ▶ AVVIA ASCOLTO ORDINI
+    </button>
+
+    <!-- Console di Sistema Cyberpunk -->
+    <div class="mt-2">
+      <div class="text-[10px] text-cyan-600 mb-1 tracking-widest uppercase">// SYSTEM_LOGS</div>
+      <div id="consoleLog" class="bg-black/90 neon-box text-cyan-400 font-mono text-[11px] p-2.5 rounded-lg h-36 overflow-y-auto space-y-1">
+        <div>> System initialized. Ready...</div>
       </div>
     </div>
 
   </main>
 
+  <!-- Footer Minimal -->
+  <footer class="text-center text-[9px] text-cyan-700/60 pt-2 border-t border-cyan-500/10">
+    SECURE BRIDGE v2.6 // 80MM ESC-POS
+  </footer>
+
   <!-- Script di Logica -->
   <script>
-    // Configurazione Supabase
     const SUPABASE_URL = 'https://yyrawuynqukwszvotiuu.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b';
     const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -67,18 +78,18 @@
     function addLog(message) {
       const consoleBox = document.getElementById('consoleLog');
       const time = new Date().toLocaleTimeString();
-      consoleBox.innerHTML += `<div>[${time}] ${message}</div>`;
+      consoleBox.innerHTML += `<div><span class="text-cyan-600">[${time}]</span> ${message}</div>`;
       consoleBox.scrollTop = consoleBox.scrollHeight;
     }
 
     function connectPrinter() {
-      addLog("Ricerca stampante Bluetooth in corso...");
+      addLog("Ricerca dispositivo Bluetooth ESC/POS...");
       setTimeout(() => {
         const box = document.getElementById('printerStatusBox');
-        box.className = "p-4 rounded-xl font-bold text-center bg-green-100 text-green-700 shadow-sm";
-        box.innerText = "Stampante connessa";
-        addLog("Stampante termica connessa con successo!");
-      }, 1500);
+        box.className = "neon-green p-2.5 rounded-lg text-center text-xs font-bold uppercase tracking-wider bg-black/40";
+        box.innerText = "[ STATO: STAMPANTE CONNESSA ]";
+        addLog("Stampante 80mm collegata con successo.");
+      }, 1200);
     }
 
     function toggleListener() {
@@ -86,43 +97,44 @@
       const box = document.getElementById('listenerStatusBox');
 
       if (!isListening) {
-        addLog("Avvio ascolto ordini da Supabase...");
+        addLog("Aggancio al Realtime di Supabase...");
         
         subscription = supabase
           .channel('public:reservations')
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reservations' }, (payload) => {
-            addLog(`Nuova prenotazione da: ${payload.new.client_name} (${payload.new.covers} coperti)`);
+            addLog(`Nuovo ordine: ${payload.new.client_name} [${payload.new.covers}p]`);
             printReceipt(payload.new);
           })
           .subscribe((status) => {
             if (status === 'SUBSCRIBED') {
-              addLog("Connesso al canale Realtime di Supabase.");
+              addLog("Canale attivo in ascolto.");
             }
           });
 
         isListening = true;
-        btn.className = "w-full bg-red-600 hover:bg-red-700 text-white font-bold p-4 rounded-xl shadow transition";
-        btn.innerText = "Ferma Ascolto Ordini";
-        box.className = "p-4 rounded-xl font-bold text-center bg-green-100 text-green-700 shadow-sm";
-        box.innerText = "Ascolto ordini attivo (Realtime)";
+        btn.className = "w-full neon-red bg-rose-950/40 hover:bg-rose-900/50 text-xs font-bold py-3 px-4 rounded-lg transition active:scale-95 uppercase tracking-wider";
+        btn.innerText = "⏹ FERMA ASCOLTO ORDINI";
+        box.className = "neon-green p-2.5 rounded-lg text-center text-xs font-bold uppercase tracking-wider bg-black/40";
+        box.innerText = "[ ASCOLTO: ATTIVO (REALTIME) ]";
 
       } else {
-        addLog("Ascolto ordini disattivato.");
+        addLog("Disconnessione canale in corso...");
         supabase.removeChannel(subscription);
         
         isListening = false;
-        btn.className = "w-full bg-green-600 hover:bg-green-700 text-white font-bold p-4 rounded-xl shadow transition";
-        btn.innerText = "Avvia Ascolto Ordini";
-        box.className = "p-4 rounded-xl font-bold text-center bg-amber-100 text-amber-700 shadow-sm";
-        box.innerText = "Ascolto ordini non attivo";
+        btn.className = "w-full neon-green bg-emerald-950/40 hover:bg-emerald-900/50 text-xs font-bold py-3 px-4 rounded-lg transition active:scale-95 uppercase tracking-wider";
+        btn.innerText = "▶ AVVIA ASCOLTO ORDINI";
+        box.className = "neon-box p-2.5 rounded-lg text-center text-xs font-bold uppercase tracking-wider text-yellow-400 bg-black/40";
+        box.style.borderColor = "rgba(255, 204, 0, 0.4)";
+        box.innerText = "[ ASCOLTO: IN ATTESA ]";
       }
     }
 
     function testPrint() {
-      addLog("Invio stampa di prova alla ESC/POS 80mm...");
+      addLog("Invio pattern di test ESC/POS...");
       setTimeout(() => {
-        addLog("Stampa di prova completata con successo!");
-      }, 800);
+        addLog("Test completato. Taglio carta eseguito.");
+      }, 700);
     }
   </script>
 

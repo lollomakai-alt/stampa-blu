@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lollo-Stamp Bridge 80mm Pro v6</title>
+<title>Lollo-Stamp Bridge 80mm Pro v9</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 body {
@@ -51,15 +51,15 @@ body {
     background-color: #1E3A8A;
     border: 1px solid #3B82F6;
     color: #FFFFFF;
-    padding: 15px;
+    padding: 14px;
     border-radius: 12px;
     width: 100%;
     font-weight: bold;
-    font-size: 14px;
+    font-size: 13px;
     cursor: pointer;
     text-align: center;
     transition: background-color 0.2s;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
 }
 .actionButton:hover {
     background-color: #1D4ED8;
@@ -84,6 +84,7 @@ body {
     color: #FACC15;
     font-weight: bold;
     margin-bottom: 10px;
+    font-size: 12px;
 }
 .connected {
     border-color: #39FF14 !important;
@@ -102,11 +103,12 @@ body {
         <div class="cardLabel">CONNESSIONE STAMPANTE BLUETOOTH</div>
         <div id="statusBadge" class="status-badge">In attesa di associazione Bluetooth...</div>
         <button class="actionButton" onclick="connettiStampante()">Associa Stampante Termica</button>
-        <button class="actionButton" style="background-color: #047857; border-color: #10B981;" onclick="stampaMessaggioConnessione()">Test Stampante (Connessa e Disponibile)</button>
+        <button class="actionButton" style="background-color: #047857; border-color: #10B981;" onclick="stampaMessaggioConnessione()">Test Stampante (Connessa)</button>
+        <button class="actionButton" style="background-color: #374151; border-color: #4B5563;" onclick="checkAndProcessPending()">Forza Sincronizzazione</button>
     </div>
     <div class="card">
         <div class="cardLabel">CONSOLE LOG IN TEMPO REALE</div>
-        <div id="logBox" class="logBox">[SYSTEM] Interfaccia 80mm v6 avviata. Clicca su associa stampante.</div>
+        <div id="logBox" class="logBox">[SYSTEM] Interfaccia 80mm v9 avviata. Clicca su associa stampante.</div>
     </div>
 </div>
 
@@ -117,8 +119,6 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let myPrinterDevice = null;
 let bluetoothCharacteristic = null;
-let isProcessingQueue = false;
-
 const LINE_WIDTH_80MM = 42;
 
 function addLog(msg) {
@@ -166,7 +166,7 @@ async function stampaMessaggioConnessione() {
         let textToPrint = INIT + ALIGN_CENTER;
         textToPrint += GS + '!' + '\x01' + "LOLLO-STAMP BRIDGE\n" + GS + '!' + '\x00';
         textToPrint += "------------------------------------------\n";
-        textToPrint += GS + '!' + '\x01' + "CONNESSA E DISPONIBILE\n" + GS + '!' + '\x00';
+        textToPrint += GS + '!' + '\x01' + "CONNESSA E DISPONIBILE (v9)\n" + GS + '!' + '\x00';
         textToPrint += "------------------------------------------\n";
         textToPrint += `Data: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}\n`;
         textToPrint += "Pronta per ricevere preconti e comande.\n";
@@ -217,7 +217,7 @@ async function setupCharacteristics(server) {
     document.getElementById('statusBadge').innerText = `Connesso a: ${myPrinterDevice.name || 'Stampante'}`;
     document.getElementById('statusBadge').classList.add('connected');
     addLog("Stampante pronta e configurata con successo!");
-    processPendingJobs();
+    checkAndProcessPending();
 }
 
 async function connettiStampante() {
@@ -251,30 +251,9 @@ async function connettiStampante() {
     }
 }
 
-async function getDatiImpostazioni() {
-    const { data, error } = await supabaseClient.from('settings').select('*');
-    let config = {
-        nome_locale: "NAKAI TIKI BAR",
-        indirizzo_locale: "Via dei Tiki, 1 - Roma",
-        piva_locale: "P.IVA: 01234567890"
-    };
-
-    if (data && !error) {
-        data.forEach(row => {
-            const k = row.key || row.chiave;
-            const v = row.value || row.valore;
-            if (k === 'nome_locale' || k === 'nome') config.nome_locale = v;
-            if (k === 'indirizzo_locale' || k === 'indirizzo') config.indirizzo_locale = v;
-            if (k === 'piva_locale' || k === 'piva') config.piva_locale = v;
-        });
-    }
-    return config;
-}
-
-function formatLine(leftText, rightText) {
-    const maxLen = LINE_WIDTH_80MM;
-    if (rightText.length >= maxLen) return leftText + "\n" + rightText + "\n";
-    const spaces = maxLen - leftText.length - rightText.length;
+function formatLine(leftText, rightText, maxW = LINE_WIDTH_80MM) {
+    if (rightText.length >= maxW) return leftText + "\n" + rightText + "\n";
+    const spaces = maxW - leftText.length - rightText.length;
     return leftText + " ".repeat(Math.max(1, spaces)) + rightText + "\n";
 }
 
@@ -305,7 +284,7 @@ async function sendToPrinter(payloadData) {
         
         if (Array.isArray(itemsList)) {
             itemsList.forEach((item, index) => {
-                const qty = Number(item.qty || item.quantita || 1);
+                const qty = Number(item.qty || item.quantita || item.quantità || 1);
                 const prezzoUnitario = Number(item.prezzo || item.price || item.prezzo_unitario || 0);
                 const subtotal = qty * prezzoUnitario;
                 totaleCalcolato += subtotal;
@@ -342,7 +321,6 @@ async function sendToPrinter(payloadData) {
         textToPrint += FEED_PAPER + CUT;
 
     } else {
-        const nomeTavolo = payloadData.table || payloadData.tavolo || 'Tavolo';
         const coperti = Number(payloadData.coperti || payloadData.coperto || 3);
         const operatore = payloadData.operatore || payloadData.operator || 'Operatore 3';
 
@@ -355,17 +333,21 @@ async function sendToPrinter(payloadData) {
         textToPrint += `Data: ${new Date().getFullYear()}-${(new Date().getMonth()+1).toString().padStart(2, '0')}-${new Date().getDate().toString().padStart(2, '0')} ${new Date().toLocaleTimeString()}\n`;
         textToPrint += `Coperti: ${coperti}\n\n`;
 
-        textToPrint += formatLine("DESCRIZIONE", "QUANTITA");
+        textToPrint += formatLine("DESCRIZIONE", "QUANTITA", 21);
         textToPrint += separatore;
 
         const itemsList = payloadData.items || payloadData.piatti || [];
         if (Array.isArray(itemsList) && itemsList.length > 0) {
             itemsList.forEach(item => {
-                const qty = Number(item.qty || item.quantita || 1).toFixed(1);
+                const qty = Number(item.qty || item.quantita || item.quantità || 1).toFixed(1);
                 const name = (item.name || item.nome || item.titolo || 'Generico');
                 const nota = item.note || item.varianti ? item.note || item.varianti : '';
 
-                textToPrint += formatLine(name, qty);
+                // Font ingrandito per facilitare la lettura in cucina
+                textToPrint += GS + '!' + '\x11'; 
+                textToPrint += formatLine(name, qty, 21);
+                textToPrint += GS + '!' + '\x00';
+
                 if (nota) {
                     textToPrint += `   NOTE: >> ${nota.toUpperCase()} <<\n`;
                 }
@@ -390,105 +372,84 @@ async function sendToPrinter(payloadData) {
         } else {
             await bluetoothCharacteristic.writeValue(chunk);
         }
-        await new Promise(resolve => setTimeout(resolve, 10)); // Più rapido
+        await new Promise(resolve => setTimeout(resolve, 5));
     }
 }
 
-async function processPendingJobs() {
-    if (isProcessingQueue) return;
+async function processSingleJob(table, id, payloadData) {
     if (!myPrinterDevice || !myPrinterDevice.gatt || !myPrinterDevice.gatt.connected) {
+        addLog("Impossibile stampare: Stampante disconnessa.");
         return;
     }
 
-    isProcessingQueue = true;
-
     try {
-        // 1. Gestione print_jobs
-        const { data: pendingJobs } = await supabaseClient
-            .from('print_jobs')
-            .select('*')
-            .eq('status', 'nuovo')
-            .order('id', { ascending: true });
+        addLog(`Stampa immediata [${table}] ID: ${id}`);
+        await sendToPrinter(payloadData);
+        
+        const statusField = table === 'print_jobs' ? 'status' : 'stato';
+        await supabaseClient.from(table).update({ [statusField]: 'stampato' }).eq('id', id);
+        addLog(`Completato ID ${id} su ${table}`);
+    } catch (err) {
+        addLog(`Errore stampa ${table} ID ${id}: ${err.message}`);
+        const statusField = table === 'print_jobs' ? 'status' : 'stato';
+        await supabaseClient.from(table).update({ [statusField]: 'nuovo' }).eq('id', id);
+    }
+}
 
-        if (pendingJobs && pendingJobs.length > 0) {
-            for (const job of pendingJobs) {
-                // Imposta subito a "in_lavorazione" per bloccare duplicati
-                const { error: lockErr } = await supabaseClient
-                    .from('print_jobs')
-                    .update({ status: 'in_lavorazione' })
-                    .eq('id', job.id)
-                    .eq('status', 'nuovo');
+async function checkAndProcessPending() {
+    try {
+        addLog("Controllo elementi in sospeso...");
+        
+        // Sblocca eventuali record bloccati in "in_lavorazione" da più di 30 secondi (Anti-crash)
+        const thirtySecAgo = new Date(Date.now() - 30000).toISOString();
+        await supabaseClient.from('print_jobs').update({ status: 'nuovo' }).eq('status', 'in_lavorazione').lt('updated_at', thirtySecAgo);
+        await supabaseClient.from('comande').update({ stato: 'nuovo' }).eq('stato', 'in_lavorazione').lt('updated_at', thirtySecAgo);
 
-                if (!lockErr) {
-                    try {
-                        addLog(`Stampa print_job ID: ${job.id}`);
-                        await sendToPrinter(job.payload || job);
-                        await supabaseClient.from('print_jobs').update({ status: 'stampato' }).eq('id', job.id);
-                    } catch (err) {
-                        addLog(`Errore stampa job ${job.id}: ${err.message}`);
-                        await supabaseClient.from('print_jobs').update({ status: 'nuovo' }).eq('id', job.id);
-                        break;
-                    }
-                }
+        const { data: jobs } = await supabaseClient.from('print_jobs').select('*').eq('status', 'nuovo').order('id', { ascending: true });
+        if (jobs) {
+            for (const j of jobs) {
+                const { error } = await supabaseClient.from('print_jobs').update({ status: 'in_lavorazione' }).eq('id', j.id).eq('status', 'nuovo');
+                if (!error) await processSingleJob('print_jobs', j.id, j.payload || j);
             }
         }
 
-        // 2. Gestione comande
-        const { data: pendingComande } = await supabaseClient
-            .from('comande')
-            .select('*')
-            .eq('stato', 'nuovo')
-            .order('id', { ascending: true });
-
-        if (pendingComande && pendingComande.length > 0) {
-            for (const comanda of pendingComande) {
-                // Imposta subito a "in_lavorazione" per bloccare duplicati
-                const { error: lockErr } = await supabaseClient
-                    .from('comande')
-                    .update({ stato: 'in_lavorazione' })
-                    .eq('id', comanda.id)
-                    .eq('stato', 'nuovo');
-
-                if (!lockErr) {
-                    try {
-                        addLog(`Stampa comanda ID: ${comanda.id}`);
-                        await sendToPrinter(comanda);
-                        await supabaseClient.from('comande').update({ stato: 'stampato' }).eq('id', comanda.id);
-                    } catch (err) {
-                        addLog(`Errore stampa comanda ${comanda.id}: ${err.message}`);
-                        await supabaseClient.from('comande').update({ stato: 'nuovo' }).eq('id', comanda.id);
-                        break;
-                    }
-                }
+        const { data: comande } = await supabaseClient.from('comande').select('*').eq('stato', 'nuovo').order('id', { ascending: true });
+        if (comande) {
+            for (const c of comande) {
+                const { error } = await supabaseClient.from('comande').update({ stato: 'in_lavorazione' }).eq('id', c.id).eq('stato', 'nuovo');
+                if (!error) await processSingleJob('comande', c.id, c);
             }
         }
-
     } catch (e) {
         console.error(e);
-    } finally {
-        isProcessingQueue = false;
     }
 }
 
 if (supabaseClient) {
     supabaseClient
-        .channel('public:print_jobs_and_comande_instant')
+        .channel('public:lollo_stamp_realtime_v9')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'print_jobs' }, async (payload) => {
             if (payload.new && payload.new.status === 'nuovo') {
-                addLog("Nuovo print_job ricevuto in tempo reale.");
-                await processPendingJobs();
+                const item = payload.new;
+                const { error } = await supabaseClient.from('print_jobs').update({ status: 'in_lavorazione' }).eq('id', item.id).eq('status', 'nuovo');
+                if (!error) {
+                    await processSingleJob('print_jobs', item.id, item.payload || item);
+                }
             }
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comande' }, async (payload) => {
             if (payload.new && payload.new.stato === 'nuovo') {
-                addLog("Nuova comanda ricevuta in tempo reale.");
-                await processPendingJobs();
+                const item = payload.new;
+                const { error } = await supabaseClient.from('comande').update({ stato: 'in_lavorazione' }).eq('id', item.id).eq('stato', 'nuovo');
+                if (!error) {
+                    await processSingleJob('comande', item.id, item);
+                }
             }
         })
         .subscribe((status) => {
             if (status === 'SUBSCRIBED') {
-                addLog("Connessione Realtime Supabase attiva.");
-                processPendingJobs(); // Controlla eventuali elementi rimasti indietro all'avvio
+                addLog("Ascolto Realtime Supabase attivo (v9).");
+                checkAndProcessPending();
             }
         });
 }

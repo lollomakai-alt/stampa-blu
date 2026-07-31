@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Configurazione Supabase (Inserisci i tuoi dati)
-const SUPABASE_URL = 'IL_TUO_SUPABASE_URL';
-const SUPABASE_KEY = 'IL_TUO_SUPABASE_ANON_KEY';
+// Configurazione Supabase (Credenziali ufficiali inserite)
+const SUPABASE_URL = 'https://yyrawuynqukwszvotiuu.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let stampanteDisponibile = null; // Riferimento alla stampante Bluetooth connessa
@@ -11,16 +11,17 @@ let ultimaComandaElaborataId = null; // Anti-duplicazione stampa
 // ==========================================
 // 1. GESTIONE CONNESSIONE BLUETOOTH
 // ==========================================
-async function associaStampante() {
+export async function associaStampante() {
     try {
         console.log("[SYSTEM] Ricerca stampante termica Bluetooth in corso...");
         stampanteDisponibile = await navigator.bluetooth.requestDevice({
             acceptAllDevices: true,
-            optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'] // Servizio standard stampanti termiche ESC/POS
+            optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'] // Servizio standard ESC/POS
         });
         
         console.log(`[SYSTEM] Stampante connessa: ${stampanteDisponibile.name}`);
-        document.getElementById("status-stampante").innerText = "Test Stampante (Connessa)";
+        const statusEl = document.getElementById("status-stampante");
+        if (statusEl) statusEl.innerText = "Test Stampante (Connessa)";
     } catch (error) {
         console.error("[ERRORE] Connessione Bluetooth fallita:", error);
     }
@@ -33,10 +34,10 @@ export function avviaAscoltoOrdini() {
     console.log("[SYSTEM] Avvio ascolto in tempo reale da Supabase...");
     
     supabase
-      .channel('ordini-bridge-lollo')
+      .channel('ordini-bridge-lollo-definitivo')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'ordini' }, // Sostituisci 'ordini' con la tua tabella
+        { event: 'INSERT', schema: 'public', table: 'ordini' },
         async (payload) => {
           const ordine = payload.new;
           
@@ -49,7 +50,7 @@ export function avviaAscoltoOrdini() {
 
           console.log("[SYSTEM] Nuovo record ricevuto in tempo reale!", ordine);
           
-          // Indirizza al binario corretto in base al tipo (comanda o preconto)
+          // Instradamento sul binario corretto (Preconto vs Comanda)
           if (ordine.tipo === 'preconto') {
               await stampaPreconto(ordine);
           } else {
@@ -61,58 +62,70 @@ export function avviaAscoltoOrdini() {
 }
 
 // ==========================================
-// 3. FORMATTAZIONE E STAMPA COMANDA (Cucina)
+// 3. FORMATTAZIONE E STAMPA COMANDA (Cucina - Grande e Visibile)
 // ==========================================
 async function stampaComanda(dati) {
-    console.log("[STAMPA] Generazione Comanda (Grande e Visibile)...");
+    console.log("[STAMPA] Generazione Comanda...");
     
     let testoStampa = "";
     testoStampa += "\x1B\x45\x01"; // Grassetto ON
-    testoStampa += "       COMANDA\n";
-    testoStampa += `Data: ${dati.data} - Coperti: ${dati.coperti}\n`;
+    testoStampa += "\x1B\x21\x30"; // Carattere doppio altezza/larghezza (Grande)
+    testoStampa += " COMANDA\n";
+    testoStampa += "\x1B\x21\x00"; // Ritorno a carattere normale per i dettagli
+    testoStampa += `Data: ${dati.data || ''} - Coperti: ${dati.coperti || ''}\n`;
     testoStampa += "--------------------------------\n";
     testoStampa += "DESCRIZIONE                  QTA\n";
     testoStampa += "--------------------------------\n";
     
-    // Ciclo articoli con correzione quantitativa da 1.0 a x1
-    dati.articoli.forEach(item => {
-        let qtaFormattata = `x${parseInt(item.quantita)}`; // Converte es. 1.0 in x1
-        testoStampa += `${item.nome.padEnd(25)} ${qtaFormattata}\n`;
-    });
+    // Ciclo articoli con correzione quantitativa (da 1.0 a x1)
+    if (dati.articoli && Array.isArray(dati.articoli)) {
+        dati.articoli.forEach(item => {
+            let qtaPulita = parseInt(item.quantita) || 1;
+            let qtaFormattata = `x${qtaPulita}`;
+            let nomeArticolo = (item.nome || '').substring(0, 25).padEnd(25);
+            testoStampa += `${nomeArticolo} ${qtaFormattata}\n`;
+        });
+    }
     
     testoStampa += "--------------------------------\n";
-    testoStampa += `Oper: ${dati.operatore}\n\n\n`;
+    testoStampa += `Oper: ${dati.operatore || 'N/D'}\n\n\n`;
     testoStampa += "\x1B\x45\x00"; // Grassetto OFF
 
     await inviaAlFlussoBluetooth(testoStampa);
 }
 
 // ==========================================
-// 4. FORMATTAZIONE E STAMPA PRECONTO (Cassa)
+// 4. FORMATTAZIONE E STAMPA PRECONTO (Cassa - Piccolo e Compatto)
 // ==========================================
 async function stampaPreconto(dati) {
-    console.log("[STAMPA] Generazione Preconto (Compatto)...");
+    console.log("[STAMPA] Generazione Preconto...");
+    
+    let titoloLocale = dati.titolo_locale || 'IL MIO LOCALE';
     
     let testoStampa = "";
     testoStampa += "\x1B\x21\x01"; // Carattere compatto/piccolo
-    testoStampa += `*** ${dati.titolo_locale || 'IL MIO LOCALE'} ***\n`;
-    testoStampa  += "---------- PRECONTO ----------\n";
+    testoStampa += `*** ${titoloLocale} ***\n`;
+    testoStampa += "---------- PRECONTO ----------\n";
     
-    dati.articoli.forEach(item => {
-        let qtaFormattata = `x${parseInt(item.quantita)}`;
-        let prezzoTotale = (item. prezzo * item.quantita).toFixed(2);
-        testoStampa += `${qtaFormattata} ${item.nome} - Eur ${prezzoTotale}\n`;
-    });
+    if (dati.articoli && Array.isArray(dati.articoli)) {
+        dati.articoli.forEach(item => {
+            let qtaPulita = parseInt(item.quantita) || 1;
+            let qtaFormattata = `x${qtaPulita}`;
+            let prezzoUnitario = parseFloat(item.prezzo) || 0;
+            let prezzoTotale = (prezzoUnitario * qtaPulita).toFixed(2);
+            testoStampa += `${qtaFormattata} ${item.nome} - Eur ${prezzoTotale}\n`;
+        });
+    }
     
     testoStampa += "--------------------------------\n";
-    testoStampa += `TOTALE DA PAGARE: Eur ${dati.totale}\n`;
+    testoStampa += `TOTALE DA PAGARE: Eur ${dati.totale || '0.00'}\n`;
     testoStampa += "Documento non fiscale\n\n\n";
 
     await inviaAlFlussoBluetooth(testoStampa);
 }
 
 // ==========================================
-// 5. INVIO FISICO DEI DATI ALLA STAMPANTE
+// 5. INVIO FISICO DEI DATI ALLA STAMPANTE BLUETOOTH
 // ==========================================
 async function inviaAlFlussoBluetooth(datiComando) {
     if (!stampanteDisponibile || !stampanteDisponibile.gatt.connected) {

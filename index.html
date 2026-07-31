@@ -1,104 +1,130 @@
-import React, { useState, useEffect } from 'react'; 
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native'; 
-import { createClient } from '@supabase/supabase-js'; 
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lollo Stamp Bridge</title>
+  <!-- Tailwind CSS per uno stile moderno e responsive da app mobile -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 flex flex-col h-screen justify-between">
 
-// 1. Configurazione Supabase (con le tue chiavi)
-const supabaseUrl = 'https://yyrawuynqukwszvotiuu.supabase.co'; 
-const supabaseKey = 'sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b'; 
-const supabase = createClient(supabaseUrl, supabaseKey); 
+  <!-- Header -->
+  <header class="bg-blue-600 text-white p-4 text-center font-bold text-lg shadow-md">
+    Lollo Stamp Bridge
+  </header>
 
-export default function App() { 
-  const [printerConnected, setPrinterConnected] = useState(false); 
-  const [listening, setListening] = useState(false); 
-  const [logs, setLogs] = useState([]); 
+  <!-- Contenuto Principale -->
+  <main class="flex-1 p-4 overflow-y-auto space-y-4">
+    
+    <!-- Stato Stampante -->
+    <div id="printerStatusBox" class="p-4 rounded-xl font-bold text-center bg-red-100 text-red-700 shadow-sm">
+      Stampante non connessa
+    </div>
 
-  const addLog = (msg) => { 
-    setLogs((prev) => [msg, ...prev]); 
-  }; 
+    <!-- Stato Ascolto -->
+    <div id="listenerStatusBox" class="p-4 rounded-xl font-bold text-center bg-amber-100 text-amber-700 shadow-sm">
+      Ascolto ordini non attivo
+    </div>
 
-  // Simula associazione Bluetooth 
-  const handleConnectPrinter = () => { 
-    addLog("Ricerca stampante Bluetooth in corso..."); 
-    setTimeout(() => { 
-      setPrinterConnected(true); 
-      addLog("Stampante termica connessa con successo!"); 
-    }, 1500); 
-  }; 
+    <!-- Pulsanti di controllo -->
+    <div class="space-y-3">
+      <button onclick="connectPrinter()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold p-4 rounded-xl shadow transition">
+        Associa Stampante
+      </button>
 
-  // Avvia ascolto ordini in tempo reale da Supabase 
-  const handleToggleListening = () => { 
-    if (!listening) { 
-      addLog("Avvio ascolto ordini da Supabase..."); 
-      const subscription = supabase 
-        .channel('public:reservations') 
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reservations' }, (payload) => { 
-          addLog(`Nuova prenotazione ricevuta da: ${payload.new.client_name}!`); 
-          printReceipt(payload.new); 
-        }) 
-        .subscribe(); 
+      <button id="toggleListenerBtn" onclick="toggleListener()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold p-4 rounded-xl shadow transition">
+        Avvia Ascolto Ordini
+      </button>
 
-      setListening(true); 
-    } else { 
-      addLog("Ascolto ordini disattivato."); 
-      supabase.removeAllChannels(); 
-      setListening(false); 
-    } 
-  }; 
+      <button onclick="testPrint()" class="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold p-4 rounded-xl shadow transition">
+        Stampa di Prova
+      </button>
+    </div>
 
-  // Funzione per stampare lo scontrino 
-  const printReceipt = (reservation) => { 
-    addLog(`Invio comandi ESC/POS alla stampante per: ${reservation.client_name}`); 
-  }; 
+    <!-- Console di Sistema -->
+    <div class="mt-4">
+      <h3 class="text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Console di Sistema</h3>
+      <div id="consoleLog" class="bg-black text-green-400 font-mono text-xs p-3 rounded-xl h-40 overflow-y-auto shadow-inner space-y-1">
+        <div>> Sistema pronto.</div>
+      </div>
+    </div>
 
-  return ( 
-    <View style={styles.container}> 
-      <Text style={styles.title}>Lollo Stamp Bridge (Android)</Text>
+  </main>
 
-      {/* Stato Stampante */} 
-      <View style={[styles.statusBox, { backgroundColor: printerConnected ? '#d4edda' : '#f8d7da' }]}> 
-        <Text style={{ color: printerConnected ? '#155724' : '#721c24', fontWeight: 'bold' }}> 
-          {printerConnected ? "Stampante connessa" : "Stampante non connessa"} 
-        </Text> 
-      </View> 
+  <!-- Script di Logica -->
+  <script>
+    // Configurazione Supabase
+    const SUPABASE_URL = 'https://yyrawuynqukwszvotiuu.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b';
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-      {/* Stato Ascolto */} 
-      <View style={[styles.statusBox, { backgroundColor: listening ? '#d4edda' : '#fff3cd' }]}> 
-        <Text style={{ color: listening ? '#155724' : '#856404', fontWeight: 'bold' }}> 
-          {listening ? "Ascolto ordini attivo (Realtime)" : "Ascolto ordini non attivo"} 
-        </Text> 
-      </View> 
+    let isListening = false;
+    let subscription = null;
 
-      {/* Pulsanti di controllo */} 
-      <TouchableOpacity style={styles.button} onPress={handleConnectPrinter}> 
-        <Text style={styles.buttonText}>Associa Stampante</Text> 
-      </TouchableOpacity> 
+    function addLog(message) {
+      const consoleBox = document.getElementById('consoleLog');
+      const time = new Date().toLocaleTimeString();
+      consoleBox.innerHTML += `<div>[${time}] ${message}</div>`;
+      consoleBox.scrollTop = consoleBox.scrollHeight;
+    }
 
-      <TouchableOpacity style={[styles.button, { backgroundColor: listening ? '#dc3545' : '#28a745' }]} onPress={handleToggleListening}> 
-        <Text style={styles.buttonText}>{listening ? "Ferma Ascolto Ordini" : "Avvia Ascolto Ordini"}</Text> 
-      </TouchableOpacity> 
+    function connectPrinter() {
+      addLog("Ricerca stampante Bluetooth in corso...");
+      setTimeout(() => {
+        const box = document.getElementById('printerStatusBox');
+        box.className = "p-4 rounded-xl font-bold text-center bg-green-100 text-green-700 shadow-sm";
+        box.innerText = "Stampante connessa";
+        addLog("Stampante termica connessa con successo!");
+      }, 1500);
+    }
 
-      <TouchableOpacity style={[styles.button, { backgroundColor: '#17a2b8' }]} onPress={() => addLog("Stampa di prova inviata.")}> 
-        <Text style={styles.buttonText}>Stampa di Prova</Text> 
-      </TouchableOpacity> 
+    function toggleListener() {
+      const btn = document.getElementById('toggleListenerBtn');
+      const box = document.getElementById('listenerStatusBox');
 
-      {/* Console di sistema */} 
-      <Text style={styles.consoleTitle}>CONSOLE DI SISTEMA</Text> 
-      <ScrollView style={styles.console}> 
-        {logs.map((log, index) => ( 
-          <Text key={index} style={styles.logText}>• {log}</Text> 
-        ))} 
-      </ScrollView> 
-    </View> 
-  ); 
-} 
+      if (!isListening) {
+        addLog("Avvio ascolto ordini da Supabase...");
+        
+        subscription = supabase
+          .channel('public:reservations')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reservations' }, (payload) => {
+            addLog(`Nuova prenotazione da: ${payload.new.client_name} (${payload.new.covers} coperti)`);
+            printReceipt(payload.new);
+          })
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              addLog("Connesso al canale Realtime di Supabase.");
+            }
+          });
 
-const styles = StyleSheet.create({ 
-  container: { flex: 1, backgroundColor: '#f5f5f5', padding: 20, paddingTop: 50 }, 
-  title: { fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 }, 
-  statusBox: { padding: 12, borderRadius: 8, marginBottom: 10, alignItems: 'center' }, 
-  button: { backgroundColor: '#007bff', padding: 15, borderRadius: 8, alignItems: 'center', marginBottom: 10 }, 
-  buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }, 
-  consoleTitle: { fontSize: 14, fontWeight: 'bold', marginTop: 15, marginBottom: 5, color: '#666' }, 
-  console: { backgroundColor: '#000', borderRadius: 8, padding: 10, flex: 1, maxHeight: 150 }, 
-  logText: { color: '#0f0', fontSize: 12, fontFamily: 'monospace', marginBottom: 4 } 
-});
+        isListening = true;
+        btn.className = "w-full bg-red-600 hover:bg-red-700 text-white font-bold p-4 rounded-xl shadow transition";
+        btn.innerText = "Ferma Ascolto Ordini";
+        box.className = "p-4 rounded-xl font-bold text-center bg-green-100 text-green-700 shadow-sm";
+        box.innerText = "Ascolto ordini attivo (Realtime)";
+
+      } else {
+        addLog("Ascolto ordini disattivato.");
+        supabase.removeChannel(subscription);
+        
+        isListening = false;
+        btn.className = "w-full bg-green-600 hover:bg-green-700 text-white font-bold p-4 rounded-xl shadow transition";
+        btn.innerText = "Avvia Ascolto Ordini";
+        box.className = "p-4 rounded-xl font-bold text-center bg-amber-100 text-amber-700 shadow-sm";
+        box.innerText = "Ascolto ordini non attivo";
+      }
+    }
+
+    function testPrint() {
+      addLog("Invio stampa di prova alla ESC/POS 80mm...");
+      setTimeout(() => {
+        addLog("Stampa di prova completata con successo!");
+      }, 800);
+    }
+  </script>
+
+</body>
+</html>

@@ -1,147 +1,394 @@
-import { createClient } from '@supabase/supabase-js'
-
-// Configurazione Supabase (Credenziali ufficiali inserite)
-const SUPABASE_URL = 'https://yyrawuynqukwszvotiuu.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b';
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-let stampanteDisponibile = null; // Riferimento alla stampante Bluetooth connessa
-let ultimaComandaElaborataId = null; // Anti-duplicazione stampa
-
-// ==========================================
-// 1. GESTIONE CONNESSIONE BLUETOOTH
-// ==========================================
-export async function associaStampante() {
-    try {
-        console.log("[SYSTEM] Ricerca stampante termica Bluetooth in corso...");
-        stampanteDisponibile = await navigator.bluetooth.requestDevice({
-            acceptAllDevices: true,
-            optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'] // Servizio standard ESC/POS
-        });
-        
-        console.log(`[SYSTEM] Stampante connessa: ${stampanteDisponibile.name}`);
-        const statusEl = document.getElementById("status-stampante");
-        if (statusEl) statusEl.innerText = "Test Stampante (Connessa)";
-    } catch (error) {
-        console.error("[ERRORE] Connessione Bluetooth fallita:", error);
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lollo Stamp Bridge - Ponte Stampa Bluetooth</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --border: #334155;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --brand: #2563eb;
+      --brand-hover: #1d4ed8;
+      --ok: #22c55e;
+      --err: #ef4444;
+      --warn: #f59e0b;
     }
-}
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+    header { text-align: center; margin-bottom: 24px; }
+    header h1 { font-size: 1.5rem; margin: 0 0 4px; }
+    header p { color: var(--muted); margin: 0; font-size: 0.9rem; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); flex: none; }
+    .dot.ok { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+    .dot.err { background: var(--err); }
+    .dot.warn { background: var(--warn); }
+    .status-text { font-weight: 600; }
+    .status-sub { color: var(--muted); font-size: 0.85rem; }
+    .btns { display: flex; flex-wrap: wrap; gap: 10px; }
+    button {
+      appearance: none;
+      border: 1px solid var(--brand);
+      background: var(--brand);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 10px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover:not(:disabled) { background: var(--brand-hover); }
+    button.secondary { background: transparent; color: var(--text); border-color: var(--border); }
+    button.secondary:hover:not(:disabled) { background: var(--border); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .log {
+      background: #020617;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      height: 260px;
+      overflow-y: auto;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .log-line { margin: 0 0 2px; }
+    .log-line.info { color: var(--text); }
+    .log-line.system { color: #38bdf8; }
+    .log-line.print { color: var(--ok); }
+    .log-line.error { color: var(--err); }
+    .log-line .ts { color: var(--muted); margin-right: 6px; }
+    .hint {
+      font-size: 0.8rem;
+      color: var(--warn);
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 16px;
+    }
+    .section-title { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 0 0 10px; }
+  </style>
 
-// ==========================================
-// 2. ASCOLTO TEMPO REALE SUPABASE (Realtime)
-// ==========================================
-export function avviaAscoltoOrdini() {
-    console.log("[SYSTEM] Avvio ascolto in tempo reale da Supabase...");
-    
-    supabase
-      .channel('ordini-bridge-lollo-definitivo')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'ordini' },
-        async (payload) => {
-          const ordine = payload.new;
-          
-          // Prevenzione stampa doppia per lo stesso ID evento
-          if (ultimaComandaElaborataId === ordine.id) {
-              console.log("[SYSTEM] Ignorato evento duplicato per lo stesso ordine.");
+  <!-- Risoluzione dell'import "bare" @supabase/supabase-js tramite CDN ESM -->
+  <script type="importmap">
+  {
+    "imports": {
+      "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Lollo Stamp Bridge</h1>
+      <p>Ponte tra Supabase e la stampante termica Bluetooth (ESC/POS)</p>
+    </header>
+
+    <div id="bt-hint" class="hint" hidden>
+      Attenzione: il Web Bluetooth non e disponibile in questo contesto. Apri la pagina in una scheda dedicata,
+      su HTTPS, usando Chrome/Edge su desktop o Android.
+    </div>
+
+    <div class="panel">
+      <div class="status-row">
+        <span id="dot-stampante" class="dot"></span>
+        <div>
+          <div id="status-stampante" class="status-text">Stampante non connessa</div>
+          <div class="status-sub">Collega la stampante termica via Bluetooth</div>
+        </div>
+      </div>
+      <div class="status-row">
+        <span id="dot-ascolto" class="dot"></span>
+        <div>
+          <div id="status-ascolto" class="status-text">Ascolto ordini non attivo</div>
+          <div class="status-sub">Ricezione ordini in tempo reale da Supabase</div>
+        </div>
+      </div>
+      <div class="btns">
+        <button id="btn-associa" type="button">Associa Stampante</button>
+        <button id="btn-ascolto" type="button" class="secondary" disabled>Avvia Ascolto Ordini</button>
+        <button id="btn-test" type="button" class="secondary" disabled>Stampa di Prova</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <p class="section-title">Console di sistema</p>
+      <div id="log" class="log" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createClient } from '@supabase/supabase-js'
+
+    // ==========================================
+    // Configurazione Supabase (Credenziali ufficiali inserite)
+    // ==========================================
+    const SUPABASE_URL = 'https://yyrawuynqukwszvotiuu.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_5pTXjGcknQWzbVDWwD4tSQ_trCjQV0b';
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let stampanteDisponibile = null;      // Riferimento alla stampante Bluetooth connessa
+    let caratteristicaStampa = null;      // Caratteristica GATT su cui scrivere
+    let ultimaComandaElaborataId = null;  // Anti-duplicazione stampa
+    let ascoltoAttivo = false;
+
+    const SERVICE_UUID = '000018f0-0000-1000-8000-00805f9b34fb';        // Servizio standard ESC/POS
+    const CHARACTERISTIC_UUID = '00002af1-0000-1000-8000-00805f9b34fb'; // Caratteristica scrittura
+
+    // ==========================================
+    // Utility: logging su schermo + console
+    // ==========================================
+    const logEl = document.getElementById('log');
+    function log(msg, tipo = 'info') {
+      const ts = new Date().toLocaleTimeString('it-IT');
+      const line = document.createElement('p');
+      line.className = `log-line ${tipo}`;
+      line.innerHTML = `<span class="ts">${ts}</span>${msg}`;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+      console.log(`[v0] ${msg}`);
+    }
+
+    function setStatoStampante(testo, stato) {
+      document.getElementById('status-stampante').innerText = testo;
+      document.getElementById('dot-stampante').className = `dot ${stato || ''}`.trim();
+    }
+    function setStatoAscolto(testo, stato) {
+      document.getElementById('status-ascolto').innerText = testo;
+      document.getElementById('dot-ascolto').className = `dot ${stato || ''}`.trim();
+    }
+
+    // ==========================================
+    // 1. GESTIONE CONNESSIONE BLUETOOTH
+    // ==========================================
+    async function associaStampante() {
+      if (!navigator.bluetooth) {
+        log('Web Bluetooth non supportato in questo browser/contesto.', 'error');
+        document.getElementById('bt-hint').hidden = false;
+        return;
+      }
+      try {
+        log('Ricerca stampante termica Bluetooth in corso...', 'system');
+        stampanteDisponibile = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: [SERVICE_UUID]
+        });
+
+        stampanteDisponibile.addEventListener('gattserverdisconnected', () => {
+          log('Stampante disconnessa.', 'error');
+          setStatoStampante('Stampante non connessa', 'err');
+          caratteristicaStampa = null;
+          document.getElementById('btn-ascolto').disabled = true;
+          document.getElementById('btn-test').disabled = true;
+        });
+
+        log(`Connessione a: ${stampanteDisponibile.name || 'dispositivo senza nome'}...`, 'system');
+        const server = await stampanteDisponibile.gatt.connect();
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        caratteristicaStampa = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+        log(`Stampante connessa: ${stampanteDisponibile.name || 'OK'}`, 'system');
+        setStatoStampante(`Connessa: ${stampanteDisponibile.name || 'stampante'}`, 'ok');
+        document.getElementById('btn-ascolto').disabled = false;
+        document.getElementById('btn-test').disabled = false;
+      } catch (error) {
+        log(`Connessione Bluetooth fallita: ${error.message}`, 'error');
+        setStatoStampante('Connessione fallita', 'err');
+      }
+    }
+
+    // ==========================================
+    // 2. ASCOLTO TEMPO REALE SUPABASE (Realtime)
+    // ==========================================
+    function avviaAscoltoOrdini() {
+      if (ascoltoAttivo) {
+        log('Ascolto gia attivo.', 'system');
+        return;
+      }
+      log('Avvio ascolto in tempo reale da Supabase...', 'system');
+
+      supabase
+        .channel('ordini-bridge-lollo-definitivo')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'ordini' },
+          async (payload) => {
+            const ordine = payload.new;
+
+            // Prevenzione stampa doppia per lo stesso ID evento
+            if (ultimaComandaElaborataId === ordine.id) {
+              log('Ignorato evento duplicato per lo stesso ordine.', 'system');
               return;
-          }
-          ultimaComandaElaborataId = ordine.id;
+            }
+            ultimaComandaElaborataId = ordine.id;
 
-          console.log("[SYSTEM] Nuovo record ricevuto in tempo reale!", ordine);
-          
-          // Instradamento sul binario corretto (Preconto vs Comanda)
-          if (ordine.tipo === 'preconto') {
+            log(`Nuovo ordine ricevuto (id: ${ordine.id}, tipo: ${ordine.tipo || 'comanda'})`, 'system');
+
+            // Instradamento: Preconto vs Comanda
+            if (ordine.tipo === 'preconto') {
               await stampaPreconto(ordine);
-          } else {
+            } else {
               await stampaComanda(ordine);
+            }
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            ascoltoAttivo = true;
+            setStatoAscolto('Ascolto ordini attivo', 'ok');
+            log('Sottoscrizione realtime attiva.', 'system');
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            setStatoAscolto('Errore nella connessione realtime', 'err');
+            log(`Stato canale realtime: ${status}`, 'error');
+          } else {
+            setStatoAscolto(`Realtime: ${status}`, 'warn');
+          }
+        });
+    }
+
+    // ==========================================
+    // 3. STAMPA COMANDA (Cucina - Grande e Visibile)
+    // ==========================================
+    async function stampaComanda(dati) {
+      log('Generazione Comanda...', 'print');
+
+      let testoStampa = '';
+      testoStampa += '\x1B\x45\x01'; // Grassetto ON
+      testoStampa += '\x1B\x21\x30'; // Doppia altezza/larghezza (Grande)
+      testoStampa += ' COMANDA\n';
+      testoStampa += '\x1B\x21\x00'; // Ritorno a carattere normale
+      testoStampa += `Data: ${dati.data || ''} - Coperti: ${dati.coperti || ''}\n`;
+      testoStampa += '--------------------------------\n';
+      testoStampa += 'DESCRIZIONE                  QTA\n';
+      testoStampa += '--------------------------------\n';
+
+      if (dati.articoli && Array.isArray(dati.articoli)) {
+        dati.articoli.forEach(item => {
+          let qtaPulita = parseInt(item.quantita) || 1;
+          let qtaFormattata = `x${qtaPulita}`;
+          let nomeArticolo = (item.nome || '').substring(0, 25).padEnd(25);
+          testoStampa += `${nomeArticolo} ${qtaFormattata}\n`;
+        });
+      }
+
+      testoStampa += '--------------------------------\n';
+      testoStampa += `Oper: ${dati.operatore || 'N/D'}\n\n\n`;
+      testoStampa += '\x1B\x45\x00'; // Grassetto OFF
+
+      await inviaAlFlussoBluetooth(testoStampa);
+    }
+
+    // ==========================================
+    // 4. STAMPA PRECONTO (Cassa - Piccolo e Compatto)
+    // ==========================================
+    async function stampaPreconto(dati) {
+      log('Generazione Preconto...', 'print');
+
+      let titoloLocale = dati.titolo_locale || 'IL MIO LOCALE';
+
+      let testoStampa = '';
+      testoStampa += '\x1B\x21\x01'; // Carattere compatto/piccolo
+      testoStampa += `*** ${titoloLocale} ***\n`;
+      testoStampa += '---------- PRECONTO ----------\n';
+
+      if (dati.articoli && Array.isArray(dati.articoli)) {
+        dati.articoli.forEach(item => {
+          let qtaPulita = parseInt(item.quantita) || 1;
+          let qtaFormattata = `x${qtaPulita}`;
+          let prezzoUnitario = parseFloat(item.prezzo) || 0;
+          let prezzoTotale = (prezzoUnitario * qtaPulita).toFixed(2);
+          testoStampa += `${qtaFormattata} ${item.nome} - Eur ${prezzoTotale}\n`;
+        });
+      }
+
+      testoStampa += '--------------------------------\n';
+      testoStampa += `TOTALE DA PAGARE: Eur ${dati.totale || '0.00'}\n`;
+      testoStampa += 'Documento non fiscale\n\n\n';
+
+      await inviaAlFlussoBluetooth(testoStampa);
+    }
+
+    // ==========================================
+    // 5. INVIO FISICO DEI DATI ALLA STAMPANTE BLUETOOTH
+    // ==========================================
+    async function inviaAlFlussoBluetooth(datiComando) {
+      if (!stampanteDisponibile || !stampanteDisponibile.gatt.connected || !caratteristicaStampa) {
+        log('Stampante non connessa via Bluetooth!', 'error');
+        return;
+      }
+
+      try {
+        const encoder = new TextEncoder();
+        const dati = encoder.encode(datiComando);
+
+        // Scrittura a blocchi (molte stampanti BLE limitano il payload a ~512 byte)
+        const CHUNK = 180;
+        for (let i = 0; i < dati.length; i += CHUNK) {
+          const blocco = dati.slice(i, i + CHUNK);
+          if (caratteristicaStampa.writeValueWithoutResponse) {
+            await caratteristicaStampa.writeValueWithoutResponse(blocco);
+          } else {
+            await caratteristicaStampa.writeValue(blocco);
           }
         }
-      )
-      .subscribe();
-}
-
-// ==========================================
-// 3. FORMATTAZIONE E STAMPA COMANDA (Cucina - Grande e Visibile)
-// ==========================================
-async function stampaComanda(dati) {
-    console.log("[STAMPA] Generazione Comanda...");
-    
-    let testoStampa = "";
-    testoStampa += "\x1B\x45\x01"; // Grassetto ON
-    testoStampa += "\x1B\x21\x30"; // Carattere doppio altezza/larghezza (Grande)
-    testoStampa += " COMANDA\n";
-    testoStampa += "\x1B\x21\x00"; // Ritorno a carattere normale per i dettagli
-    testoStampa += `Data: ${dati.data || ''} - Coperti: ${dati.coperti || ''}\n`;
-    testoStampa += "--------------------------------\n";
-    testoStampa += "DESCRIZIONE                  QTA\n";
-    testoStampa += "--------------------------------\n";
-    
-    // Ciclo articoli con correzione quantitativa (da 1.0 a x1)
-    if (dati.articoli && Array.isArray(dati.articoli)) {
-        dati.articoli.forEach(item => {
-            let qtaPulita = parseInt(item.quantita) || 1;
-            let qtaFormattata = `x${qtaPulita}`;
-            let nomeArticolo = (item.nome || '').substring(0, 25).padEnd(25);
-            testoStampa += `${nomeArticolo} ${qtaFormattata}\n`;
-        });
+        log('Stampa eseguita con successo.', 'print');
+      } catch (err) {
+        log(`Impossibile inviare i dati alla stampante: ${err.message}`, 'error');
+      }
     }
-    
-    testoStampa += "--------------------------------\n";
-    testoStampa += `Oper: ${dati.operatore || 'N/D'}\n\n\n`;
-    testoStampa += "\x1B\x45\x00"; // Grassetto OFF
 
-    await inviaAlFlussoBluetooth(testoStampa);
-}
+    // ==========================================
+    // Collegamento UI
+    // ==========================================
+    document.getElementById('btn-associa').addEventListener('click', associaStampante);
+    document.getElementById('btn-ascolto').addEventListener('click', avviaAscoltoOrdini);
+    document.getElementById('btn-test').addEventListener('click', () => {
+      stampaComanda({
+        data: new Date().toLocaleDateString('it-IT'),
+        coperti: 2,
+        operatore: 'TEST',
+        articoli: [
+          { nome: 'Caffe espresso', quantita: 2 },
+          { nome: 'Cornetto', quantita: 3 }
+        ]
+      });
+    });
 
-// ==========================================
-// 4. FORMATTAZIONE E STAMPA PRECONTO (Cassa - Piccolo e Compatto)
-// ==========================================
-async function stampaPreconto(dati) {
-    console.log("[STAMPA] Generazione Preconto...");
-    
-    let titoloLocale = dati.titolo_locale || 'IL MIO LOCALE';
-    
-    let testoStampa = "";
-    testoStampa += "\x1B\x21\x01"; // Carattere compatto/piccolo
-    testoStampa += `*** ${titoloLocale} ***\n`;
-    testoStampa += "---------- PRECONTO ----------\n";
-    
-    if (dati.articoli && Array.isArray(dati.articoli)) {
-        dati.articoli.forEach(item => {
-            let qtaPulita = parseInt(item.quantita) || 1;
-            let qtaFormattata = `x${qtaPulita}`;
-            let prezzoUnitario = parseFloat(item.prezzo) || 0;
-            let prezzoTotale = (prezzoUnitario * qtaPulita).toFixed(2);
-            testoStampa += `${qtaFormattata} ${item.nome} - Eur ${prezzoTotale}\n`;
-        });
+    // Avviso iniziale se Web Bluetooth non disponibile (es. dentro un iframe)
+    if (!navigator.bluetooth) {
+      document.getElementById('bt-hint').hidden = false;
     }
-    
-    testoStampa += "--------------------------------\n";
-    testoStampa += `TOTALE DA PAGARE: Eur ${dati.totale || '0.00'}\n`;
-    testoStampa += "Documento non fiscale\n\n\n";
 
-    await inviaAlFlussoBluetooth(testoStampa);
-}
-
-// ==========================================
-// 5. INVIO FISICO DEI DATI ALLA STAMPANTE BLUETOOTH
-// ==========================================
-async function inviaAlFlussoBluetooth(datiComando) {
-    if (!stampanteDisponibile || !stampanteDisponibile.gatt.connected) {
-        console.error("[ERRORE] Stampante non connessa via Bluetooth!");
-        return;
-    }
-    
-    try {
-        const server = await stampanteDisponibile.gatt.connect();
-        const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-        const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
-        
-        const encoder = new TextEncoder();
-        await characteristic.writeValue(encoder.encode(datiComando));
-        console.log("[SYSTEM] Stampa eseguita con successo.");
-    } catch (err) {
-        console.error("[ERRORE] Impossibile inviare i dati alla stampante:", err);
-    }
-}
+    log('Sistema pronto. Collega la stampante per iniziare.', 'system');
+  </script>
+</body>
+</html>

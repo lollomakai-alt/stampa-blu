@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lollo-Stamp Bridge 80mm Pro v5</title>
+<title>Lollo-Stamp Bridge 80mm Pro v6</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 body {
@@ -106,7 +106,7 @@ body {
     </div>
     <div class="card">
         <div class="cardLabel">CONSOLE LOG IN TEMPO REALE</div>
-        <div id="logBox" class="logBox">[SYSTEM] Interfaccia 80mm v5 avviata. Clicca su associa stampante.</div>
+        <div id="logBox" class="logBox">[SYSTEM] Interfaccia 80mm v6 avviata. Clicca su associa stampante.</div>
     </div>
 </div>
 
@@ -183,7 +183,7 @@ async function stampaMessaggioConnessione() {
             } else {
                 await bluetoothCharacteristic.writeValue(chunk);
             }
-            await new Promise(resolve => setTimeout(resolve, 20));
+            await new Promise(resolve => setTimeout(resolve, 10));
         }
         addLog("Stampa avvenuta: 'CONNESSA E DISPONIBILE'");
     } catch (err) {
@@ -293,12 +293,10 @@ async function sendToPrinter(payloadData) {
     const CUT = GS + 'V' + '\x41' + '\x03';
     let textToPrint = INIT;
 
-    const settings = await getDatiImpostazioni();
     const tipoDoc = (payloadData.type || payloadData.tipo || payloadData.destination || 'preconto').toLowerCase();
     const separatore = "------------------------------------------\n";
 
     if (tipoDoc.includes('conto') || tipoDoc.includes('preconto') || tipoDoc.includes('ordine')) {
-        // --- STILE PRECONTO (Foglio 1) ---
         textToPrint += ALIGN_RIGHT;
         textToPrint += "EURO\n\n";
 
@@ -315,11 +313,9 @@ async function sendToPrinter(payloadData) {
                 const codiceId = item.id || (index + 1);
                 const name = (item.name || item.nome || item.titolo || 'Articolo').toUpperCase();
 
-                // Riga Quantità per Prezzo unitario (es. 2 X 2,80)
                 textToPrint += ALIGN_LEFT;
                 textToPrint += `${qty} X ${prezzoUnitario.toFixed(2)}\n`;
                 
-                // Riga Codice# Nome Articolo e Prezzo Totale allineato a destra
                 const rigaVoce = `${codiceId}# ${name}`;
                 const rigaPrezzo = prezzoUnitario > 0 ? `${subtotal.toFixed(2)}` : '';
                 textToPrint += formatLine(rigaVoce, rigaPrezzo);
@@ -346,7 +342,6 @@ async function sendToPrinter(payloadData) {
         textToPrint += FEED_PAPER + CUT;
 
     } else {
-        // --- STILE COMANDA (Foglio 2) ---
         const nomeTavolo = payloadData.table || payloadData.tavolo || 'Tavolo';
         const coperti = Number(payloadData.coperti || payloadData.coperto || 3);
         const operatore = payloadData.operatore || payloadData.operator || 'Operatore 3';
@@ -395,7 +390,7 @@ async function sendToPrinter(payloadData) {
         } else {
             await bluetoothCharacteristic.writeValue(chunk);
         }
-        await new Promise(resolve => setTimeout(resolve, 20));
+        await new Promise(resolve => setTimeout(resolve, 10)); // Più rapido
     }
 }
 
@@ -408,36 +403,62 @@ async function processPendingJobs() {
     isProcessingQueue = true;
 
     try {
-        const { data: pendingJobs, error: errJobs } = await supabaseClient
+        // 1. Gestione print_jobs
+        const { data: pendingJobs } = await supabaseClient
             .from('print_jobs')
             .select('*')
             .eq('status', 'nuovo')
             .order('id', { ascending: true });
 
-        if (!errJobs && pendingJobs && pendingJobs.length > 0) {
+        if (pendingJobs && pendingJobs.length > 0) {
             for (const job of pendingJobs) {
-                try {
-                    await sendToPrinter(job.payload || job);
-                    await supabaseClient.from('print_jobs').update({ status: 'stampato' }).eq('id', job.id);
-                } catch (err) {
-                    break;
+                // Imposta subito a "in_lavorazione" per bloccare duplicati
+                const { error: lockErr } = await supabaseClient
+                    .from('print_jobs')
+                    .update({ status: 'in_lavorazione' })
+                    .eq('id', job.id)
+                    .eq('status', 'nuovo');
+
+                if (!lockErr) {
+                    try {
+                        addLog(`Stampa print_job ID: ${job.id}`);
+                        await sendToPrinter(job.payload || job);
+                        await supabaseClient.from('print_jobs').update({ status: 'stampato' }).eq('id', job.id);
+                    } catch (err) {
+                        addLog(`Errore stampa job ${job.id}: ${err.message}`);
+                        await supabaseClient.from('print_jobs').update({ status: 'nuovo' }).eq('id', job.id);
+                        break;
+                    }
                 }
             }
         }
 
-        const { data: pendingComande, error: errComande } = await supabaseClient
+        // 2. Gestione comande
+        const { data: pendingComande } = await supabaseClient
             .from('comande')
             .select('*')
             .eq('stato', 'nuovo')
             .order('id', { ascending: true });
 
-        if (!errComande && pendingComande && pendingComande.length > 0) {
+        if (pendingComande && pendingComande.length > 0) {
             for (const comanda of pendingComande) {
-                try {
-                    await sendToPrinter(comanda);
-                    await supabaseClient.from('comande').update({ stato: 'stampato' }).eq('id', comanda.id);
-                } catch (err) {
-                    break;
+                // Imposta subito a "in_lavorazione" per bloccare duplicati
+                const { error: lockErr } = await supabaseClient
+                    .from('comande')
+                    .update({ stato: 'in_lavorazione' })
+                    .eq('id', comanda.id)
+                    .eq('stato', 'nuovo');
+
+                if (!lockErr) {
+                    try {
+                        addLog(`Stampa comanda ID: ${comanda.id}`);
+                        await sendToPrinter(comanda);
+                        await supabaseClient.from('comande').update({ stato: 'stampato' }).eq('id', comanda.id);
+                    } catch (err) {
+                        addLog(`Errore stampa comanda ${comanda.id}: ${err.message}`);
+                        await supabaseClient.from('comande').update({ stato: 'nuovo' }).eq('id', comanda.id);
+                        break;
+                    }
                 }
             }
         }
@@ -451,21 +472,26 @@ async function processPendingJobs() {
 
 if (supabaseClient) {
     supabaseClient
-        .channel('public:print_jobs_and_comande')
+        .channel('public:print_jobs_and_comande_instant')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'print_jobs' }, async (payload) => {
-            if (payload.new && payload.new.status === 'nuovo') await processProcessingJobs();
+            if (payload.new && payload.new.status === 'nuovo') {
+                addLog("Nuovo print_job ricevuto in tempo reale.");
+                await processPendingJobs();
+            }
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comande' }, async (payload) => {
-            if (payload.new && payload.new.stato === 'nuovo') await processPendingJobs();
+            if (payload.new && payload.new.stato === 'nuovo') {
+                addLog("Nuova comanda ricevuta in tempo reale.");
+                await processPendingJobs();
+            }
         })
-        .subscribe();
+        .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                addLog("Connessione Realtime Supabase attiva.");
+                processPendingJobs(); // Controlla eventuali elementi rimasti indietro all'avvio
+            }
+        });
 }
-
-setInterval(() => {
-    if (myPrinterDevice && myPrinterDevice.gatt && myPrinterDevice.gatt.connected) {
-        processPendingJobs();
-    }
-}, 20000);
 </script>
 </body>
 </html>

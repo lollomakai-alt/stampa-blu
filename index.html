@@ -3,8 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lollo-Stamp Bridge</title>
-<!-- Inclusione della libreria Supabase via CDN -->
+<title>Lollo-Stamp Bridge 80mm Pro</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 body {
@@ -91,7 +90,7 @@ body {
 <div class="container">
     <div class="header">
         <div class="headerTitle">LOLLO-STAMP</div>
-        <div style="font-size: 11px; color: #9CA3AF; margin-top: 4px;">CLOUD DIRECT BRIDGE</div>
+        <div style="font-size: 11px; color: #9CA3AF; margin-top: 4px;">80MM PRO BRIDGE</div>
     </div>
     
     <div class="card">
@@ -102,7 +101,7 @@ body {
     
     <div class="card">
         <div class="cardLabel">CONSOLE LOG IN TEMPO REALE</div>
-        <div id="logBox" class="logBox">[SYSTEM] Interfaccia avviata. Clicca su associa stampante.</div>
+        <div id="logBox" class="logBox">[SYSTEM] Interfaccia 80mm avviata. Clicca su associa stampante.</div>
     </div>
 </div>
 
@@ -114,6 +113,9 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let myPrinterDevice = null;
 let bluetoothCharacteristic = null;
+
+// Larghezza massima standard per stampanti 80mm (caratteri font normale)
+const LINE_WIDTH_80MM = 42; 
 
 function addLog(msg) {
     const logBox = document.getElementById('logBox');
@@ -169,7 +171,7 @@ async function connettiStampante() {
 
         document.getElementById('statusBadge').innerText = `Connesso a: ${myPrinterDevice.name}`;
         document.getElementById('statusBadge').classList.add('connected');
-        addLog("Stampante pronta e configurata con successo!");
+        addLog("Stampante 80mm pronta e configurata!");
 
         processPendingJobs();
 
@@ -201,7 +203,15 @@ async function getDatiImpostazioni() {
     return config;
 }
 
-// 3. Funzione di stampa professionale
+// Utility per formattare righe con testo a sinistra e prezzo a destra (ottimizzato 80mm)
+function formatLine(leftText, rightText) {
+    const maxLen = LINE_WIDTH_80MM;
+    if (rightText.length >= maxLen) return leftText + "\n" + rightText;
+    const spaces = maxLen - leftText.length - rightText.length;
+    return leftText + " ".repeat(Math.max(1, spaces)) + rightText + "\n";
+}
+
+// 3. Funzione di stampa professionale 80mm
 async function sendToPrinter(payloadData) {
     if (!myPrinterDevice || !myPrinterDevice.gatt.connected || !bluetoothCharacteristic) {
         throw new Error("Stampante Bluetooth disconnessa.");
@@ -212,11 +222,16 @@ async function sendToPrinter(payloadData) {
     const INIT = ESC + '@';
     const ALIGN_CENTER = ESC + 'a' + '\x01';
     const ALIGN_LEFT = ESC + 'a' + '\x00';
-    const CUT = '\n\n\x1D\x56\x41\x03'; // Comando standard di taglio carta
+    
+    // Spaziatura di alimentazione e taglio pulito per evitare che il testo resti sotto la testina
+    const FEED_PAPER = '\n'.repeat(4); 
+    const CUT = GS + 'V' + '\x41' + '\x03'; 
 
     let textToPrint = INIT;
     const settings = await getDatiImpostazioni();
     const tipoDoc = (payloadData.type || payloadData.tipo || 'comanda').toLowerCase();
+    const separatore = "------------------------------------------\n";
+    const separatoreDoppio = "==========================================\n";
 
     if (tipoDoc === 'conto' || tipoDoc === 'preconto') {
         const nomeLocale = payloadData.nome_locale || settings.nome_locale;
@@ -229,89 +244,96 @@ async function sendToPrinter(payloadData) {
         textToPrint += GS + '!' + '\x01' + `${nomeLocale}\n` + GS + '!' + '\x00';
         textToPrint += `${indirizzoLocale}\n`;
         textToPrint += `${pivaLocale}\n`;
-        textToPrint += `================================\n`;
+        textToPrint += separatoreDoppio;
         textToPrint += `*** DOCUMENTO NON FISCALE ***\n`;
         textToPrint += `PRECONTO / CONTO TAVOLO\n`;
-        textToPrint += `================================\n`;
+        textToPrint += separatoreDoppio;
 
         const tavolo = payloadData.tavolo || payloadData.table || "N/D";
         const coperti = payloadData.coperti ? `Coperti: ${payloadData.coperti}` : 'Coperti: 1';
-        textToPrint += ALIGN_LEFT + `TAVOLO: ${tavolo} | ${coperti}\n`;
+        
+        textToPrint += ALIGN_LEFT;
+        textToPrint += `TAVOLO: ${tavolo} | ${coperti}\n`;
         textToPrint += `CONTO N: #${idOrdine} | OPERATORE: ${operatore}\n`;
         textToPrint += `DATA: ${new Date().toLocaleDateString()} - ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n`;
-        textToPrint += `--------------------------------\n`;
+        textToPrint += separatore;
         textToPrint += `ARTICOLI ORDINATI:\n`;
-        textToPrint += `--------------------------------\n`;
+        textToPrint += separatore;
+
+        let totaleCalcolato = 0;
 
         if (payloadData.items && Array.isArray(payloadData.items)) {
             payloadData.items.forEach(item => {
                 const qty = item.qty || 1;
                 const name = item.name || item.nome || 'Articolo';
-                const prezzo = item.prezzo || item.price;
-                const nota = item.note || item.varianti ? ` (${item.note || item.varianti})` : '';
+                const prezzoUnitario = item.prezzo || item.price || 0;
+                const subtotal = qty * prezzoUnitario;
+                totaleCalcolato += subtotal;
 
-                textToPrint += `${qty} x ${name}${nota}\n`;
-                if (prezzo) {
-                    textToPrint += `               [ ${(qty * prezzo).toFixed(2)} EUR ]\n`;
+                const rigaArticolo = `${qty}x ${name}`;
+                const rigaPrezzo = prezzoUnitario > 0 ? `EUR ${subtotal.toFixed(2)}` : '';
+                
+                textToPrint += formatLine(rigaArticolo, rigaPrezzo);
+
+                if (item.note || item.varianti) {
+                    textToPrint += `   -> Note: ${item.note || item.varianti}\n`;
                 }
             });
         }
 
-        textToPrint += `================================\n`;
-        const totale = payloadData.totale || payloadData.total;
-        if (totale) {
-            textToPrint += ALIGN_CENTER + GS + '!' + '\x01';
-            textToPrint += `TOTALE: ${Number(totale).toFixed(2)} EUR\n`;
-            textToPrint += GS + '!' + '\x00';
-        }
-
-        textToPrint += `================================\n`;
+        textToPrint += separatoreDoppio;
+        const totaleFinale = payloadData.totale || payloadData.total || totaleCalcolato;
+        
+        textToPrint += ALIGN_CENTER + GS + '!' + '\x01';
+        textToPrint += `TOTALE: EUR ${Number(totaleFinale).toFixed(2)}\n`;
+        textToPrint += GS + '!' + '\x00';
+        textToPrint += separatoreDoppio;
         textToPrint += `Grazie per aver scelto il nostro locale!\n`;
         textToPrint += `Il personale vi augura una buona serata\n`;
-        textToPrint += `Arrivederci a presto!\n`;
-        textToPrint += CUT;
+        textToPrint += FEED_PAPER + CUT;
 
     } else {
-        // --- COMANDA CUCINA / BAR (Gestione Paginazione e Centratura) ---
+        // --- COMANDA CUCINA / BAR 80mm ---
         const tipoComanda = (payloadData.type || 'COMANDA').toUpperCase();
         const nomeTavolo = payloadData.table || payloadData.tavolo || 'Tavolo';
         const numCoperti = payloadData.coperti || payloadData.seats || '-';
         const now = new Date();
 
         const generaPaginaComanda = (articoliSlice, numeroPagina, totalePagine) => {
-            let paginaStr = ALIGN_CENTER + GS + '!' + '\x11';
+            let paginaStr = ALIGN_CENTER + GS + '!' + '\x11'; // Carattere grande in evidenza per cucina
             paginaStr += `*** ${tipoComanda} ***\n`;
             if (totalePagine > 1) {
                 paginaStr += GS + '!' + '\x00' + `(Pag. ${numeroPagina} di ${totalePagine})\n`;
                 paginaStr += GS + '!' + '\x11';
             }
             paginaStr += `\nTAVOLO: ${nomeTavolo}\n`;
-            paginaStr += GS + '!' + '\x00';
-            paginaStr += `--------------------------------\n`;
+            paginaStr += GS + '!' + '\x00'; // Ritorno a font normale
+            paginaStr += separatore;
             paginaStr += `COPERTI: ${numCoperti} | ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n`;
-            paginaStr += `================================\n\n`;
+            paginaStr += separatoreDoppio + '\n';
 
             articoliSlice.forEach(item => {
                 const qty = item.qty || 1;
                 const name = (item.name || item.nome || 'Generico').toUpperCase();
-                const nota = item.note || item.varianti ? `\nNOTE: ${item.note || item.varianti}` : '';
+                const nota = item.note || item.varianti ? item.note || item.varianti : '';
 
-                paginaStr += ALIGN_CENTER + GS + '!' + '\x01';
-                paginaStr += `>> ${qty} PZ - ${name} <<\n`;
+                paginaStr += ALIGN_LEFT + GS + '!' + '\x01'; // Evidenziato medio
+                paginaStr += `[ ${qty} ]  ${name}\n`;
+                paginaStr += GS + '!' + '\x00'; // Font normale
+                
                 if (nota) {
-                    paginaStr += `${nota}\n`;
+                    paginaStr += `     NOTE: >> ${nota.toUpperCase()} <<\n`;
                 }
-                paginaStr += GS + '!' + '\x00';
-                paginaStr += `--------------------------------\n`;
+                paginaStr += separatore;
             });
 
             paginaStr += `\n[ FINE COMANDA ]\n`;
-            paginaStr += CUT;
+            paginaStr += FEED_PAPER + CUT;
             return paginaStr;
         };
 
         if (payloadData.items && Array.isArray(payloadData.items) && payloadData.items.length > 0) {
-            const CHUNK_LIMIT = 5; // Massimo 5 articoli per pagina per evitare tagli
+            const CHUNK_LIMIT = 6; // Ottimizzato per fogli da 80mm
             const items = payloadData.items;
             const totalePagine = Math.ceil(items.length / CHUNK_LIMIT);
 
@@ -323,10 +345,10 @@ async function sendToPrinter(payloadData) {
             textToPrint += ALIGN_CENTER + GS + '!' + '\x11';
             textToPrint += `*** ${tipoComanda} ***\n\nTAVOLO: ${nomeTavolo}\n`;
             textToPrint += GS + '!' + '\x00';
-            textToPrint += `--------------------------------\n`;
+            textToPrint += separatore;
             textToPrint += `Nessun articolo specificato\n`;
-            textToPrint += `================================\n`;
-            textToPrint += CUT;
+            textToPrint += separatoreDoppio;
+            textToPrint += FEED_PAPER + CUT;
         }
     }
 
